@@ -3,7 +3,7 @@ name: IndexNow
 # After a successful production deploy, submits sitemap URLs that are new since the last run to
 # IndexNow (Bing, Yandex). The URL list from each run is kept as an artifact; the next run diffs
 # against it. With no earlier artifact (first run, or older than the 90-day retention) it submits
-# every URL. Changed pages are left to the normal sitemap crawl: lastmod is the build time.
+# nothing and only saves the baseline: Bing flags bulk submissions. Changed pages are left to the normal sitemap crawl: lastmod is the build time.
 # Needs no secrets: it reads only the public sitemap and key file.
 
 on: deployment_status
