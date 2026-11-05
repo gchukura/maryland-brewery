@@ -235,12 +235,12 @@ What it does: Meant to print a breakdown of how many URLs the sitemap should con
 
 File: `scripts/submit-indexnow.ts`
 
-What it does: Checks that the IndexNow key file `https://www.marylandbrewery.com/457bccd4eef437d8877d15d3e947fa02.txt` is reachable (it is served from `public/`). It then fetches the live `https://www.marylandbrewery.com/sitemap.xml` and POSTs every URL to `api.indexnow.org` in batches of up to 10,000. Bing and Yandex use IndexNow; Google does not. The host and key are hard-coded. Because it reads the live sitemap, it only submits what is already deployed.
+What it does: Checks that the IndexNow key file `https://www.marylandbrewery.com/457bccd4eef437d8877d15d3e947fa02.txt` is reachable (it is served from `public/`). It then fetches the live `https://www.marylandbrewery.com/sitemap.xml` and POSTs the selected URLs to `api.indexnow.org` in requests of at most 100, 5 seconds apart. Bing Webmaster Tools warns against bulk ("batch mode") submissions, so the script refuses to run without `--previous` or `--all`. Bing and Yandex use IndexNow; Google does not. The host and key are hard-coded. Because it reads the live sitemap, it only submits what is already deployed.
 
 - Env: none.
 - Writes to Supabase: **no**. It makes an external POST to IndexNow.
-- Flags: `--previous <file>` submits only sitemap URLs missing from that JSON list (every URL if the file does not exist). `--save <file>` writes the current sitemap URLs there after a successful submission. It exits with code 1 if any batch fails.
-- How often: automatically. `.github/workflows/indexnow.yml` runs it with both flags after every successful production deploy, so each deploy submits only new pages (it keeps the URL list as an Actions artifact). Pages whose content changed are not resubmitted; the sitemap's `lastmod` is the build time, so it cannot tell them apart. Run it by hand, with no flags, only to resubmit everything after a large content change. Do not do that often, because IndexNow can rate-limit (HTTP 429).
+- Flags: `--previous <file>` submits only sitemap URLs missing from that JSON list (none if the file does not exist, so the first run just records a baseline). `--all` submits every sitemap URL. `--save <file>` writes the current sitemap URLs there after a successful submission. It exits with code 1 if any batch fails.
+- How often: automatically. `.github/workflows/indexnow.yml` runs it with both flags after every successful production deploy, so each deploy submits only new pages (it keeps the URL list as an Actions artifact). Pages whose content changed are not resubmitted; the sitemap's `lastmod` is the build time, so it cannot tell them apart. Do not run `--all` as routine: Bing flags whole-sitemap submissions as batch mode, and IndexNow can rate-limit (HTTP 429). The sitemap in Bing Webmaster Tools already covers everything.
 
 ### `npm run lint:links`
 

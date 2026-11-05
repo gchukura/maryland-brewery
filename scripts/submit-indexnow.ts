@@ -1,16 +1,19 @@
 /**
  * IndexNow URL Submission Script
  * 
- * Submits all URLs from your sitemap to IndexNow API for instant indexing
- * by Bing, Yandex, and other participating search engines.
- * 
- * Usage: npx tsx scripts/submit-indexnow.ts
- *        npx tsx scripts/submit-indexnow.ts --previous prev-urls.json --save urls.json
+ * Submits sitemap URLs to the IndexNow API so Bing, Yandex and other participating search
+ * engines recrawl them.
  *
- * --previous: submit only the sitemap URLs missing from this JSON list (all of them if the
- *             file does not exist). --save: write the current sitemap URLs there after a
- *             successful submission. The production-deploy workflow (.github/workflows/indexnow.yml)
- *             uses both so each deploy submits only new pages.
+ * Usage: npx tsx scripts/submit-indexnow.ts --previous prev-urls.json --save urls.json
+ *        npx tsx scripts/submit-indexnow.ts --all
+ *
+ * --previous: submit only the sitemap URLs missing from this JSON list. If the file does not
+ *             exist, submit nothing (with --save, that run just records the baseline).
+ * --save:     write the current sitemap URLs there after a successful submission.
+ * --all:      submit every sitemap URL. Bing warns against bulk ("batch mode") submissions,
+ *             so use this rarely.
+ * With neither --previous nor --all it refuses to run. URLs go out in requests of at most
+ * CHUNK_SIZE, CHUNK_DELAY_MS apart.
  * 
  * Note: Google does not participate in IndexNow, but Bing and Yandex do.
  */
@@ -29,6 +32,10 @@ const INDEXNOW_ENDPOINTS = [
   'https://www.bing.com/indexnow',
   'https://yandex.com/indexnow',
 ];
+
+// Small requests, spaced out: Bing flags large IndexNow submissions as batch mode
+const CHUNK_SIZE = 100;
+const CHUNK_DELAY_MS = 5000;
 
 // Colors for terminal output
 const colors = {
@@ -82,7 +89,7 @@ async function fetchSitemap(): Promise<string[]> {
  */
 async function submitToIndexNow(urls: string[]): Promise<boolean> {
   const endpoint = INDEXNOW_ENDPOINTS[0]; // Use main API endpoint
-  const batchSize = 10000; // IndexNow allows up to 10,000 URLs per request
+  const batchSize = CHUNK_SIZE;
   
   console.log(`${colors.blue}🚀 Submitting ${urls.length} URLs to IndexNow...${colors.reset}\n`);
   let ok = true;
@@ -136,7 +143,7 @@ async function submitToIndexNow(urls: string[]): Promise<boolean> {
     
     // Small delay between batches to avoid rate limiting
     if (i + batchSize < urls.length) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, CHUNK_DELAY_MS));
     }
   }
 
@@ -155,6 +162,15 @@ async function main(): Promise<void> {
   console.log(`${colors.cyan}Key:${colors.reset} ${INDEXNOW_KEY}`);
   console.log(`${colors.cyan}Key Location:${colors.reset} ${KEY_LOCATION}\n`);
   
+  const previousPath = flag('--previous');
+  const savePath = flag('--save');
+  const all = process.argv.includes('--all');
+  if (!previousPath && !all) {
+    console.log(`${colors.red}❌ Pass --previous <file> to submit only new URLs, or --all to submit every URL.${colors.reset}`);
+    console.log(`${colors.yellow}   Bing warns against bulk submissions; prefer --previous.${colors.reset}\n`);
+    process.exit(1);
+  }
+
   try {
     // First verify the key file is accessible
     console.log(`${colors.blue}🔑 Verifying key file...${colors.reset}`);
@@ -170,15 +186,14 @@ async function main(): Promise<void> {
     const urls = await fetchSitemap();
 
     // With --previous, submit only URLs that were not in the last submitted sitemap
-    const previousPath = flag('--previous');
-    const savePath = flag('--save');
     let toSubmit = urls;
-    if (previousPath && existsSync(previousPath)) {
+    if (!all && previousPath && existsSync(previousPath)) {
       const previous = new Set<string>(JSON.parse(readFileSync(previousPath, 'utf8')));
       toSubmit = urls.filter((url) => !previous.has(url));
       console.log(`${colors.cyan}${toSubmit.length} new URLs since ${previousPath}${colors.reset}\n`);
-    } else if (previousPath) {
-      console.log(`${colors.yellow}No ${previousPath}; submitting every URL${colors.reset}\n`);
+    } else if (!all) {
+      toSubmit = [];
+      console.log(`${colors.yellow}No ${previousPath}; submitting nothing (pass --all to submit every URL)${colors.reset}\n`);
     }
 
     // Submit to IndexNow
@@ -197,7 +212,7 @@ async function main(): Promise<void> {
     console.log(`${colors.cyan}Next steps:${colors.reset}`);
     console.log(`1. URLs will be crawled by Bing/Yandex within minutes to hours`);
     console.log(`2. Check Bing Webmaster Tools for indexing status`);
-    console.log(`3. Run this script again after adding new content\n`);
+    console.log(`3. Let the deploy workflow submit new pages; avoid --all\n`);
     
   } catch (error) {
     console.error(`\n${colors.red}❌ Error: ${error}${colors.reset}\n`);
