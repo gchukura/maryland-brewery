@@ -15,7 +15,7 @@ The maintenance scripts live in `scripts/*.ts` and run with `tsx` through the np
 
 | npm script | Purpose | Writes DB? |
 |---|---|---|
-| `data:reviews:google` | Fetch Google rating and up to 5 reviews per brewery and store place IDs | yes |
+| `data:reviews:google` | Fetch Google rating and up to 5 reviews per brewery (stored `place_id` only) | yes |
 | `data:reviews:yelp` | Fetch Yelp rating and up to 3 reviews per brewery and store Yelp business IDs | yes |
 | `data:reviews:themes` | Keyword-analyze stored reviews into `breweries.review_themes` | yes |
 | `data:reviews:dedupe` | Delete duplicate rows from `reviews` | yes (deletes) |
@@ -47,11 +47,11 @@ The maintenance scripts live in `scripts/*.ts` and run with `tsx` through the np
 
 File: `scripts/fetch-google-reviews.ts`
 
-What it does: Loads all breweries. For each one it uses the stored `place_id`, or finds it with Places Text Search and saves it. Text Search tries name + city + "brewery" first, then the query without "brewery", then the street address. It then calls Place Details for `reviews,rating,user_ratings_total`. New reviews are inserted into `reviews` with `source='google'`, skipping any that match an existing review on timestamp, reviewer name and the first 100 characters of text. It also updates `google_rating`, `google_rating_count` and `google_reviews_last_updated` on `breweries`. Breweries whose `google_reviews_last_updated` is less than 7 days old are skipped. The Places API returns at most 5 reviews per place, so the reviews table grows slowly over repeated runs.
+What it does: Loads all breweries. For each one with a stored `place_id` it calls Place Details for `reviews,rating,user_ratings_total`. New reviews are inserted into `reviews` with `source='google'`, skipping any that match an existing review on timestamp, reviewer name and the first 100 characters of text. It also updates `google_rating`, `google_rating_count` and `google_reviews_last_updated` on `breweries`. Breweries whose `google_reviews_last_updated` is less than 7 days old are skipped. Breweries without a `place_id` are skipped: link them with `npm run data:places -- --relink`, which checks that the place is the brewery (the old first-search-result lookup saved other businesses' place IDs). The Places API returns at most 5 reviews per place, so the reviews table grows slowly over repeated runs.
 
-- Env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (brewery read), `SUPABASE_SERVICE_ROLE_KEY` (writes), `GOOGLE_MAPS_API_KEY` (server key; required, it throws without one). Google Cloud needs Places API Text Search and Place Details enabled.
-- Writes to Supabase: **yes**. Inserts into `reviews` and updates `place_id`, `google_rating`, `google_rating_count` and `google_reviews_last_updated` on `breweries`.
-- Flags: none. The 7-day skip cannot be overridden.
+- Env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (brewery read), `SUPABASE_SERVICE_ROLE_KEY` (writes), `GOOGLE_MAPS_API_KEY` (server key; required, it throws without one). Google Cloud needs Places API Place Details enabled.
+- Writes to Supabase: **yes**. Inserts into `reviews` and updates `google_rating`, `google_rating_count` and `google_reviews_last_updated` on `breweries`.
+- Flags: `--slug=a,b` runs only those breweries and ignores the 7-day skip.
 - How often: weekly. Running it more often only re-skips breweries.
 
 ### `npm run data:reviews:yelp`
@@ -135,11 +135,11 @@ What it does: Finds breweries whose `logo` is empty or an external `http(s)` URL
 
 File: `scripts/download-google-photos.ts`
 
-What it does: For every brewery it uses `place_id`, or finds it with Text Search and saves it. It then gets the photo references from Place Details and downloads up to 11 photos per brewery, converts them to WebP (max 1600px, quality 80) and uploads them to `brewery-media/photos/<slug>/<n>.webp`. Photos already in Storage are not downloaded again. The new URLs are merged into `breweries.photos` without removing the old ones. It calls Place Details for every brewery on every run, even if all its photos are already in Storage.
+What it does: For every brewery with a stored `place_id` (others are skipped; link them with `npm run data:places -- --relink`) it gets the photo references from Place Details and downloads up to 11 photos per brewery, converts them to WebP (max 1600px, quality 80) and uploads them to `brewery-media/photos/<slug>/<n>.webp`. Photos already in Storage are not downloaded again. The new URLs are merged into `breweries.photos` without removing the old ones. It calls Place Details for every brewery on every run, even if all its photos are already in Storage.
 
 - Env: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (all reads and writes use the admin client), `GOOGLE_MAPS_API_KEY` (server key, required).
-- Writes to Supabase: **yes**. Updates `breweries.place_id` and `breweries.photos`. It also uploads to Supabase Storage. Needs `SUPABASE_SERVICE_ROLE_KEY` and the `brewery-media` bucket.
-- Flags: none.
+- Writes to Supabase: **yes**. Updates `breweries.photos`. It also uploads to Supabase Storage. Needs `SUPABASE_SERVICE_ROLE_KEY` and the `brewery-media` bucket.
+- Flags: `--slug=a,b` runs only those breweries.
 - How often: after adding breweries. Each run costs Google Places calls for every brewery.
 
 ### `npm run data:places`

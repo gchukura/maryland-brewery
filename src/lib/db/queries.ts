@@ -420,29 +420,6 @@ export async function updateReviewSummaryInSupabase(
 }
 
 /**
- * Store Place ID for a brewery
- */
-export async function storePlaceIdInSupabase(
-  breweryId: string,
-  placeId: string
-): Promise<void> {
-  try {
-
-    const { error } = await getAdminClient()
-      .from('breweries')
-      .update({ place_id: placeId })
-      .eq('id', breweryId);
-
-    if (error) {
-      throw error;
-    }
-  } catch (error) {
-    console.error('Failed to store Place ID in Supabase:', error);
-    throw error;
-  }
-}
-
-/**
  * Update Yelp review summary in breweries table
  */
 export async function updateYelpReviewSummaryInSupabase(

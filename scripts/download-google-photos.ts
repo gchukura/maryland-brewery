@@ -3,7 +3,7 @@
  * 
  * This script:
  * 1. Fetches all breweries from Supabase
- * 2. Uses Google Places API to find Place IDs (if not stored)
+ * 2. Skips breweries without a place_id (link them with `npm run data:places -- --relink`)
  * 3. Fetches multiple photos from Place Details API
  * 4. Downloads photos, converts them to WebP and uploads them to Supabase Storage
  *    (brewery-media/photos/<slug>/<n>.webp), storing the public URLs in breweries.photos
@@ -11,6 +11,7 @@
  * 
  * Usage:
  *   npx tsx scripts/download-google-photos.ts
+ *   npx tsx scripts/download-google-photos.ts --slug=a,b   # only these breweries
  * 
  * Make sure to set environment variables in .env.local:
  *   - NEXT_PUBLIC_SUPABASE_URL
@@ -18,7 +19,6 @@
  *   - GOOGLE_MAPS_API_KEY: a server key, not the site's browser key (docs/setup.md#google-server-key)
  * 
  * Required APIs in Google Cloud Console:
- *   - Places API (Text Search) - for finding Place IDs
  *   - Places API (Place Details) - for fetching photos
  */
 
@@ -108,53 +108,6 @@ async function getPlaceDetailsWithPhotos(placeId: string): Promise<Array<{ photo
 }
 
 /**
- * Build search query from brewery data
- */
-function buildSearchQuery(brewery: { name?: string | null; city?: string | null; state?: string | null }): string {
-  const parts: string[] = [];
-  
-  if (brewery.name) {
-    parts.push(brewery.name);
-  }
-  
-  if (brewery.city) {
-    parts.push(brewery.city);
-  }
-  if (brewery.state) {
-    parts.push(brewery.state);
-  }
-  
-  return parts.join(', ');
-}
-
-/**
- * Find Place ID using Places API Text Search
- */
-async function findPlaceId(query: string): Promise<string | null> {
-  try {
-    const encodedQuery = encodeURIComponent(query);
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodedQuery}&key=${apiKey}`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      return null;
-    }
-    
-    const data = await response.json();
-    
-    if (data.status === 'OK' && data.results && data.results.length > 0) {
-      return data.results[0].place_id;
-    }
-    
-    return null;
-  } catch (error) {
-    console.warn(`  ⚠️  Error finding Place ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    return null;
-  }
-}
-
-/**
  * Sleep function for rate limiting
  */
 function sleep(ms: number): Promise<void> {
@@ -172,10 +125,12 @@ async function downloadGooglePhotos() {
 
     // Step 1: Fetch all breweries from Supabase
     console.log('📥 Step 1: Fetching breweries from Supabase...');
-    const { data: breweries, error: fetchError } = await client
+    const only = process.argv.find((a) => a.startsWith('--slug='))?.split('=')[1]?.split(',');
+    let query = client
       .from('breweries')
-      .select('id, slug, name, city, state, place_id, photos')
-      .order('name');
+      .select('id, slug, name, city, state, place_id, photos');
+    if (only) query = query.in('slug', only);
+    const { data: breweries, error: fetchError } = await query.order('name');
     
     if (fetchError) {
       throw new Error(`Failed to fetch breweries: ${fetchError.message}`);
@@ -201,35 +156,19 @@ async function downloadGooglePhotos() {
     
     for (let i = 0; i < breweries.length; i++) {
       const brewery = breweries[i];
-      const query = buildSearchQuery(brewery);
       
       console.log(`[${i + 1}/${breweries.length}] Processing: ${brewery.name}`);
       
       try {
-        // Find or use stored Place ID
-        let placeId: string | null = brewery.place_id || null;
-        
+        // Place IDs are linked only by `npm run data:places -- --relink`, which checks the match
+        const placeId = brewery.place_id;
         if (!placeId) {
-          console.log(`   🔍 Finding Place ID...`);
-          placeId = await findPlaceId(query);
-          
-          if (placeId) {
-            // Store Place ID for future use
-            await client
-              .from('breweries')
-              .update({ place_id: placeId })
-              .eq('id', brewery.id);
-            console.log(`   ✓ Found and stored Place ID: ${placeId}`);
-          } else {
-            console.log(`   ⚠️  Could not find Place ID`);
-            skipped++;
-            console.log('');
-            continue;
-          }
-        } else {
-          console.log(`   ✓ Using stored Place ID: ${placeId}`);
+          console.log(`   ⚠️  No place_id; link it with npm run data:places -- --relink`);
+          skipped++;
+          console.log('');
+          continue;
         }
-        
+
         // Get photos from Place Details
         const photos = await getPlaceDetailsWithPhotos(placeId);
         

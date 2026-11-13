@@ -3,13 +3,14 @@
  * 
  * This script:
  * 1. Fetches all breweries from Supabase
- * 2. Finds/stores Place IDs for each brewery (if not already stored)
+ * 2. Skips breweries without a place_id (link them with `npm run data:places -- --relink`)
  * 3. Fetches reviews via Place Details API
  * 4. Writes reviews to Supabase reviews table
  * 5. Updates summary columns in breweries table (google_rating, google_rating_count, google_reviews_last_updated)
  * 
  * Usage:
  *   npx tsx scripts/fetch-google-reviews.ts
+ *   npx tsx scripts/fetch-google-reviews.ts --slug=a,b   # only these breweries, even if recently updated
  * 
  * Make sure to set environment variables in .env.local:
  *   - NEXT_PUBLIC_SUPABASE_URL
@@ -17,7 +18,6 @@
  *   - GOOGLE_MAPS_API_KEY: a server key, not the site's browser key (docs/setup.md#google-server-key)
  * 
  * Required APIs in Google Cloud Console:
- *   - Places API (Text Search) - for finding Place IDs
  *   - Places API (Place Details) - for fetching reviews
  */
 
@@ -31,7 +31,7 @@ config({ path: resolve(process.cwd(), '.env.local') });
 // Now import other modules
 import { getBreweryDataFromSupabase } from '@/lib/db/queries';
 import { googleServerKey } from './lib/google';
-import { writeReviewsToSupabase, updateReviewSummaryInSupabase, storePlaceIdInSupabase } from '@/lib/db/queries';
+import { writeReviewsToSupabase, updateReviewSummaryInSupabase } from '@/lib/db/queries';
 
 const apiKey = googleServerKey();
 
@@ -56,111 +56,6 @@ interface PlaceDetailsResponse {
   rating?: number;
   user_ratings_total?: number;
   reviews?: GoogleReview[];
-}
-
-/**
- * Build search query from brewery data
- */
-function buildSearchQuery(brewery: { name?: string; city?: string; state?: string; street?: string }): string {
-  const parts: string[] = [];
-  
-  if (brewery.name) {
-    parts.push(brewery.name);
-  }
-  
-  // Add "brewery" to help with matching
-  parts.push('brewery');
-  
-  if (brewery.city) {
-    parts.push(brewery.city);
-  }
-  if (brewery.state) {
-    parts.push(brewery.state);
-  }
-  
-  return parts.join(' ');
-}
-
-/**
- * Build alternative search query without "brewery" keyword
- */
-function buildSearchQueryWithoutBrewery(brewery: { name?: string; city?: string; state?: string }): string {
-  const parts: string[] = [];
-  
-  if (brewery.name) {
-    parts.push(brewery.name);
-  }
-  
-  if (brewery.city) {
-    parts.push(brewery.city);
-  }
-  if (brewery.state) {
-    parts.push(brewery.state);
-  }
-  
-  return parts.join(', ');
-}
-
-/**
- * Find Place ID using Places API Text Search
- * Returns null if not found, or throws an error with 'REFERER_RESTRICTION' message if API key has restrictions
- */
-async function findPlaceId(query: string): Promise<string | null> {
-  try {
-    const encodedQuery = encodeURIComponent(query);
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodedQuery}&key=${apiKey}`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.warn(`  ⚠️  HTTP error ${response.status}: ${errorText}`);
-      return null;
-    }
-    
-    const data = await response.json();
-    
-    // Handle different API response statuses
-    if (data.status === 'OK' && data.results && data.results.length > 0) {
-      const firstResult = data.results[0];
-      console.log(`   ℹ️  Found ${data.results.length} result(s), using first: "${firstResult.name}"`);
-      return firstResult.place_id;
-    } else if (data.status === 'ZERO_RESULTS') {
-      console.warn(`  ⚠️  No results found for query: "${query}"`);
-      return null;
-    } else if (data.status === 'REQUEST_DENIED') {
-      const errorMsg = data.error_message || 'Request denied';
-      console.error(`  ✗ API request denied: ${errorMsg}`);
-      
-      // Check if it's a referer restriction error
-      if (errorMsg.includes('referer restrictions')) {
-        // Throw a special error that the calling code can catch
-        const error = new Error('REFERER_RESTRICTION');
-        (error as any).isRefererRestriction = true;
-        (error as any).originalMessage = errorMsg;
-        throw error;
-      }
-      
-      throw new Error(`Places API request denied: ${errorMsg}`);
-    } else if (data.status === 'OVER_QUERY_LIMIT') {
-      console.error(`  ✗ API quota exceeded`);
-      throw new Error('Google Maps API quota exceeded');
-    } else {
-      const errorMsg = data.error_message || 'Unknown error';
-      console.warn(`  ⚠️  API returned status "${data.status}": ${errorMsg}`);
-      return null;
-    }
-  } catch (error) {
-    // Re-throw referer restriction errors so they can be handled specially
-    if (error instanceof Error && (error as any).isRefererRestriction) {
-      throw error;
-    }
-    if (error instanceof Error && (error.message.includes('REQUEST_DENIED') || error.message.includes('quota'))) {
-      throw error; // Re-throw API errors
-    }
-    console.warn(`  ⚠️  Error finding Place ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    return null;
-  }
 }
 
 /**
@@ -233,7 +128,8 @@ async function fetchGoogleReviews() {
   try {
     // Step 1: Fetch all breweries from Supabase
     console.log('📥 Step 1: Fetching breweries from Supabase...');
-    const breweries = await getBreweryDataFromSupabase();
+    const only = process.argv.find((a) => a.startsWith('--slug='))?.split('=')[1]?.split(',');
+    const breweries = (await getBreweryDataFromSupabase()).filter((b) => !only || only.includes(b.slug));
     
     if (!breweries || breweries.length === 0) {
       console.log('   ℹ️  No breweries found in Supabase');
@@ -246,8 +142,6 @@ async function fetchGoogleReviews() {
     console.log('🌍 Step 2: Fetching reviews for each brewery...');
     console.log('   (Rate limited to ~40 requests/second to stay within Google API limits)\n');
     
-    let placeIdsFound = 0;
-    let placeIdsStored = 0;
     let reviewsFetched = 0;
     let reviewsWritten = 0;
     let summariesUpdated = 0;
@@ -263,14 +157,11 @@ async function fetchGoogleReviews() {
     
     for (let i = 0; i < breweries.length; i++) {
       const brewery = breweries[i];
-      const query = buildSearchQuery(brewery);
-      
       console.log(`[${i + 1}/${breweries.length}] Processing: ${brewery.name}`);
-      console.log(`   Query: ${query}`);
       
       try {
         // Check if reviews were recently updated (within last week)
-        if (brewery.googleReviewsLastUpdated) {
+        if (brewery.googleReviewsLastUpdated && !only) {
           try {
             const lastUpdated = new Date(brewery.googleReviewsLastUpdated);
             if (!isNaN(lastUpdated.getTime()) && lastUpdated > oneWeekAgo) {
@@ -287,81 +178,15 @@ async function fetchGoogleReviews() {
           }
         }
         
-        // Check if Place ID already exists
-        let placeId: string | null = null;
-        
-        if (brewery.placeId && brewery.placeId.trim() !== '') {
-          placeId = brewery.placeId.trim();
-          console.log(`   ✓ Using existing Place ID: ${placeId}`);
-        } else {
-          // Find Place ID using Text Search
-          console.log(`   🔍 Finding Place ID...`);
-          try {
-            placeId = await findPlaceId(query);
-            
-            // If first search fails, try fallbacks (only if no referer restriction error)
-            if (!placeId && query.includes('brewery')) {
-              const fallbackQuery = buildSearchQueryWithoutBrewery({ 
-                name: brewery.name, 
-                city: brewery.city, 
-                state: brewery.state 
-              });
-              console.log(`   🔍 Trying fallback search without "brewery" keyword...`);
-              await sleep(25); // Small delay between API calls
-              placeId = await findPlaceId(fallbackQuery);
-            }
-            
-            // If still no results, try with street address
-            if (!placeId && brewery.street && brewery.street.trim() !== '') {
-              const addressQuery = `${brewery.name}, ${brewery.street}, ${brewery.city}, ${brewery.state}`;
-              console.log(`   🔍 Trying search with street address...`);
-              await sleep(25); // Small delay between API calls
-              placeId = await findPlaceId(addressQuery);
-            }
-          } catch (error) {
-            // Check if this is a referer restriction error
-            if (error instanceof Error && (error as any).isRefererRestriction) {
-              refererRestrictionErrors++;
-              const originalMsg = (error as any).originalMessage || 'API keys with referer restrictions cannot be used with this API.';
-              console.error(`  ✗ ${originalMsg}`);
-              
-              // Fail fast after first referer restriction error
-              console.error(`\n❌ STOPPING: API key has referer restrictions and cannot be used for server-side scripts.`);
-              console.error(`\n💡 SOLUTION:`);
-              console.error(`1. Go to Google Cloud Console → APIs & Services → Credentials`);
-              console.error(`2. Create a NEW API key for server-side use`);
-              console.error(`3. Set "Application restrictions" to "None"`);
-              console.error(`4. Set "API restrictions" to only: Places API (Text Search) and Places API (Place Details)`);
-              console.error(`5. Run with it: GOOGLE_MAPS_API_KEY=your_new_key npm run data:reviews:google`);
-              console.error(`\nSee docs/troubleshooting.md for detailed instructions.\n`);
-              throw new Error('API key has referer restrictions - cannot be used for server-side scripts. Please create a server-side API key without referer restrictions.');
-            }
-            // Re-throw other errors
-            throw error;
-          }
-          
-          if (!placeId) {
-            console.log(`   ⚠️  Could not find Place ID after multiple attempts`);
-            console.log(`   💡 Tip: Check if this brewery exists on Google Maps manually`);
-            skipped++;
-            console.log('');
-            continue;
-          }
-          
-          console.log(`   ✓ Found Place ID: ${placeId}`);
-          placeIdsFound++;
-          
-          // Store Place ID in Supabase
-          try {
-            await storePlaceIdInSupabase(brewery.id, placeId);
-            placeIdsStored++;
-            console.log(`   ✓ Stored Place ID in Supabase`);
-          } catch (error) {
-            console.warn(`   ⚠️  Could not store Place ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            // Continue anyway - we can still fetch reviews
-          }
+        // Place IDs are linked only by `npm run data:places -- --relink`, which checks the match
+        if (!brewery.placeId?.trim()) {
+          console.log(`   ⚠️  No place_id; link it with npm run data:places -- --relink`);
+          skipped++;
+          console.log('');
+          continue;
         }
-        
+        const placeId = brewery.placeId.trim();
+
         // Get Place Details with reviews
         console.log(`   📥 Fetching reviews...`);
         let details: PlaceDetailsResponse | null = null;
@@ -471,8 +296,6 @@ async function fetchGoogleReviews() {
     }
     
     console.log(`\n📊 Fetch Summary:`);
-    console.log(`   ✓ Place IDs found: ${placeIdsFound}`);
-    console.log(`   ✓ Place IDs stored: ${placeIdsStored}`);
     console.log(`   ✓ Reviews fetched: ${reviewsFetched}`);
     console.log(`   ✓ Reviews written: ${reviewsWritten}`);
     console.log(`   ✓ Summaries updated: ${summariesUpdated}`);
@@ -484,8 +307,6 @@ async function fetchGoogleReviews() {
     console.log('🎉 Google Reviews fetch completed successfully!');
     console.log(`\nFinal Summary:`);
     console.log(`  - Total breweries processed: ${breweries.length}`);
-    console.log(`  - Place IDs found: ${placeIdsFound}`);
-    console.log(`  - Place IDs stored: ${placeIdsStored}`);
     console.log(`  - Reviews fetched: ${reviewsFetched}`);
     console.log(`  - Reviews written: ${reviewsWritten}`);
     console.log(`  - Summaries updated: ${summariesUpdated}`);
