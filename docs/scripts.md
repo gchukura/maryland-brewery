@@ -29,6 +29,7 @@ The maintenance scripts live in `scripts/*.ts` and run with `tsx` through the np
 | `data:geocode` | Re-geocode every brewery and overwrite lat/lng that moved by more than 0.01 degrees | yes |
 | `data:verify-coordinates` | Compare stored coordinates with Google geocoding and report differences | no |
 | `data:verify-hours` | Compare stored hours with Google's; mark matches verified (`hours_verified_at`) | with `--apply` |
+| `data:places` | Fill blank hours, website, phone and street from Google Place Details (stored `place_id`); report differences and wrong place IDs; optionally take Google's values and fix place IDs | with `--apply` |
 | `data:enrich` | Fill missing social links (from brewery websites) and hours (from Google) | yes |
 | `data:enrich:amenities` | Infer missing amenity flags from review text | yes |
 | `data:attractions` | Fetch Maryland attractions from Google Places into `maryland_attractions` | yes |
@@ -140,6 +141,17 @@ What it does: For every brewery it uses `place_id`, or finds it with Text Search
 - Writes to Supabase: **yes**. Updates `breweries.place_id` and `breweries.photos`. It also uploads to Supabase Storage. Needs `SUPABASE_SERVICE_ROLE_KEY` and the `brewery-media` bucket.
 - Flags: none.
 - How often: after adding breweries. Each run costs Google Places calls for every brewery.
+
+### `npm run data:places`
+
+File: `scripts/fill-from-places.ts` (logic in `scripts/lib/places-fill.ts`)
+
+What it does: For every brewery with a `place_id`, it calls Place Details (name, business status, location, hours, website, phone, address). It fills blank `hours`, `website`, `phone` and `street`. Filled fields that differ from Google are reported: coordinates more than 0.1 miles apart, hours (compared by parsed times), website host, phone digits and street (ignoring abbreviations and suites). A place is treated as a wrong `place_id`, and nothing from it is used, when its name doesn't match the brewery's (the city in our name is ignored, and a shared website also counts as a match) or when it is more than 1 mile from our coordinates (another location of the same brewery). Closed places and invalid place IDs are listed and left alone. Hours written from Google get `hours_verified_at`. The report prints and is written to `scripts/output/places-report.md`.
+
+- Env: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_MAPS_API_KEY` (server key).
+- Writes to Supabase: only with `--apply`. Run the Sync workflow afterwards.
+- Flags: `--apply` writes the fills. `--overwrite` also replaces the differing values with Google's. `--relink` text-searches Google for breweries with a wrong or missing `place_id` and saves the nearest result whose name matches within 25 miles; if none matches, it clears the wrong `place_id` (it drives the Directions link). Run without `--apply` first and read the report.
+- How often: after adding breweries, or every few months. One Place Details call per brewery, plus a Text Search per relinked brewery.
 
 ### `npm run data:enrich`
 
