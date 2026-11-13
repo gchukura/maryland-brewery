@@ -36,6 +36,7 @@
     "data:geocode": "tsx scripts/geocode-breweries.ts",
     "data:verify-coordinates": "tsx scripts/verify-brewery-coordinates.ts",
     "data:verify-hours": "tsx scripts/verify-hours.ts",
+    "data:places": "tsx scripts/fill-from-places.ts",
     "data:beers": "tsx scripts/import-beers.ts",
     "data:enrich": "tsx scripts/enrich-supabase-breweries.ts",
     "data:enrich:amenities": "tsx scripts/enrich-amenities-from-reviews.ts",

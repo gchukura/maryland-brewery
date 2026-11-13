@@ -15,7 +15,7 @@ The maintenance scripts live in `scripts/*.ts` and run with `tsx` through the np
 
 | npm script | Purpose | Writes DB? |
 |---|---|---|
-| `data:reviews:google` | Fetch Google rating and up to 5 reviews per brewery and store place IDs | yes |
+| `data:reviews:google` | Fetch Google rating and up to 5 reviews per brewery (stored `place_id` only) | yes |
 | `data:reviews:yelp` | Fetch Yelp rating and up to 3 reviews per brewery and store Yelp business IDs | yes |
 | `data:reviews:themes` | Keyword-analyze stored reviews into `breweries.review_themes` | yes |
 | `data:reviews:dedupe` | Delete duplicate rows from `reviews` | yes (deletes) |
@@ -30,6 +30,7 @@ The maintenance scripts live in `scripts/*.ts` and run with `tsx` through the np
 | `data:verify-coordinates` | Compare stored coordinates with Google geocoding and report differences | no |
 | `data:beers` | Import beers from a CSV of the data sheet's beers tab, replacing each listed brewery's beers | with `--apply` |
 | `data:verify-hours` | Compare stored hours with Google's; mark matches verified (`hours_verified_at`) | with `--apply` |
+| `data:places` | Fill blank hours, website, phone and street from Google Place Details (stored `place_id`); report differences and wrong place IDs; optionally take Google's values and fix place IDs | with `--apply` |
 | `data:enrich` | Fill missing social links (from brewery websites) and hours (from Google) | yes |
 | `data:enrich:amenities` | Infer missing amenity flags from review text | yes |
 | `data:attractions` | Fetch Maryland attractions from Google Places into `maryland_attractions` | yes |
@@ -47,11 +48,11 @@ The maintenance scripts live in `scripts/*.ts` and run with `tsx` through the np
 
 File: `scripts/fetch-google-reviews.ts`
 
-What it does: Loads all breweries. For each one it uses the stored `place_id`, or finds it with Places Text Search and saves it. Text Search tries name + city + "brewery" first, then the query without "brewery", then the street address. It then calls Place Details for `reviews,rating,user_ratings_total`. New reviews are inserted into `reviews` with `source='google'`, skipping any that match an existing review on timestamp, reviewer name and the first 100 characters of text. It also updates `google_rating`, `google_rating_count` and `google_reviews_last_updated` on `breweries`. Breweries whose `google_reviews_last_updated` is less than 7 days old are skipped. The Places API returns at most 5 reviews per place, so the reviews table grows slowly over repeated runs.
+What it does: Loads all breweries. For each one with a stored `place_id` it calls Place Details for `reviews,rating,user_ratings_total`. New reviews are inserted into `reviews` with `source='google'`, skipping any that match an existing review on timestamp, reviewer name and the first 100 characters of text. It also updates `google_rating`, `google_rating_count` and `google_reviews_last_updated` on `breweries`. Breweries whose `google_reviews_last_updated` is less than 7 days old are skipped. Breweries without a `place_id` are skipped: link them with `npm run data:places -- --relink`, which checks that the place is the brewery (the old first-search-result lookup saved other businesses' place IDs). The Places API returns at most 5 reviews per place, so the reviews table grows slowly over repeated runs.
 
-- Env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (brewery read), `SUPABASE_SERVICE_ROLE_KEY` (writes), `GOOGLE_MAPS_API_KEY` (server key; required, it throws without one). Google Cloud needs Places API Text Search and Place Details enabled.
-- Writes to Supabase: **yes**. Inserts into `reviews` and updates `place_id`, `google_rating`, `google_rating_count` and `google_reviews_last_updated` on `breweries`.
-- Flags: none. The 7-day skip cannot be overridden.
+- Env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (brewery read), `SUPABASE_SERVICE_ROLE_KEY` (writes), `GOOGLE_MAPS_API_KEY` (server key; required, it throws without one). Google Cloud needs Places API Place Details enabled.
+- Writes to Supabase: **yes**. Inserts into `reviews` and updates `google_rating`, `google_rating_count` and `google_reviews_last_updated` on `breweries`.
+- Flags: `--slug=a,b` runs only those breweries and ignores the 7-day skip.
 - How often: weekly. Running it more often only re-skips breweries.
 
 ### `npm run data:reviews:yelp`
@@ -135,12 +136,23 @@ What it does: Finds breweries whose `logo` is empty or an external `http(s)` URL
 
 File: `scripts/download-google-photos.ts`
 
-What it does: For every brewery it uses `place_id`, or finds it with Text Search and saves it. It then gets the photo references from Place Details and downloads up to 11 photos per brewery, converts them to WebP (max 1600px, quality 80) and uploads them to `brewery-media/photos/<slug>/<n>.webp`. Photos already in Storage are not downloaded again. The new URLs are merged into `breweries.photos` without removing the old ones. It calls Place Details for every brewery on every run, even if all its photos are already in Storage.
+What it does: For every brewery with a stored `place_id` (others are skipped; link them with `npm run data:places -- --relink`) it gets the photo references from Place Details and downloads up to 11 photos per brewery, converts them to WebP (max 1600px, quality 80) and uploads them to `brewery-media/photos/<slug>/<n>.webp`. Photos already in Storage are not downloaded again. The new URLs are merged into `breweries.photos` without removing the old ones. It calls Place Details for every brewery on every run, even if all its photos are already in Storage.
 
 - Env: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (all reads and writes use the admin client), `GOOGLE_MAPS_API_KEY` (server key, required).
-- Writes to Supabase: **yes**. Updates `breweries.place_id` and `breweries.photos`. It also uploads to Supabase Storage. Needs `SUPABASE_SERVICE_ROLE_KEY` and the `brewery-media` bucket.
-- Flags: none.
+- Writes to Supabase: **yes**. Updates `breweries.photos`. It also uploads to Supabase Storage. Needs `SUPABASE_SERVICE_ROLE_KEY` and the `brewery-media` bucket.
+- Flags: `--slug=a,b` runs only those breweries.
 - How often: after adding breweries. Each run costs Google Places calls for every brewery.
+
+### `npm run data:places`
+
+File: `scripts/fill-from-places.ts` (logic in `scripts/lib/places-fill.ts`)
+
+What it does: For every brewery with a `place_id`, it calls Place Details (name, business status, location, hours, website, phone, address). It fills blank `hours`, `website`, `phone` and `street`. Filled fields that differ from Google are reported: coordinates more than 0.1 miles apart, hours (compared by parsed times), website host, phone digits and street (ignoring abbreviations and suites). A place is treated as a wrong `place_id`, and nothing from it is used, when its name doesn't match the brewery's (the city in our name is ignored, and a shared website also counts as a match) or when it is more than 1 mile from our coordinates (another location of the same brewery). Closed places and invalid place IDs are listed and left alone. Hours written from Google get `hours_verified_at`. The report prints and is written to `scripts/output/places-report.md`.
+
+- Env: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_MAPS_API_KEY` (server key).
+- Writes to Supabase: only with `--apply`. Run the Sync workflow afterwards.
+- Flags: `--apply` writes the fills. `--overwrite` also replaces the differing values with Google's. `--relink` text-searches Google for breweries with a wrong or missing `place_id` and saves the nearest result whose name matches within 25 miles; if none matches, it clears the wrong `place_id` (it drives the Directions link). Run without `--apply` first and read the report.
+- How often: after adding breweries, or every few months. One Place Details call per brewery, plus a Text Search per relinked brewery.
 
 ### `npm run data:enrich`
 
