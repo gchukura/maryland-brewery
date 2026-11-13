@@ -28,6 +28,7 @@ The maintenance scripts live in `scripts/*.ts` and run with `tsx` through the np
 | `media:migrate` | Move existing `public/photos` and `public/logos` into Storage and repoint the rows (dry run unless `--apply`) | with `--apply` |
 | `data:geocode` | Re-geocode every brewery and overwrite lat/lng that moved by more than 0.01 degrees | yes |
 | `data:verify-coordinates` | Compare stored coordinates with Google geocoding and report differences | no |
+| `data:beers` | Import beers from a CSV of the data sheet's beers tab, replacing each listed brewery's beers | with `--apply` |
 | `data:verify-hours` | Compare stored hours with Google's; mark matches verified (`hours_verified_at`) | with `--apply` |
 | `data:enrich` | Fill missing social links (from brewery websites) and hours (from Google) | yes |
 | `data:enrich:amenities` | Infer missing amenity flags from review text | yes |
@@ -188,6 +189,17 @@ What it does: Geocodes each brewery's name and address with the Geocoding API an
 - Writes to Supabase: **no** (read only).
 - Flags: one optional positional argument, a brewery name substring (`ilike '%name%'`), for example `npm run data:verify-coordinates -- "Silly Yak"`. With no argument it checks all breweries.
 - How often: as needed. Run it before `data:geocode`, or when a map pin looks wrong.
+
+### `npm run data:beers`
+
+File: `scripts/import-beers.ts` (parsing in `scripts/lib/beers-csv.ts`)
+
+What it does: Reads a CSV with the columns `brewery_id, beer_name, beer_style, beer_abv, beer_availability` (`name`, `style`, `abv` and `availability` also work), such as the beers tab of the data sheet downloaded with File > Download > Comma-separated values. For every brewery in the file, it replaces that brewery's rows in `beers` with the file's. Breweries not in the file keep their beers. It skips rows with an unknown `brewery_id`, rows without a name, and repeated beers (same brewery, same name ignoring case). An ABV that isn't a number (such as "TBD") and "Unknown" availability are stored empty, because the brewery page shows ABV with a "%". It prints what will be added and removed before writing.
+
+- Env: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+- Writes to Supabase: only with `--apply`. Run the Sync workflow afterwards.
+- Usage: `npm run data:beers -- ~/Downloads/beers.csv`, then the same with `--apply`.
+- How often: whenever the beers tab changes.
 
 ### `npm run data:verify-hours`
 
