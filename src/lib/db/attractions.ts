@@ -7,7 +7,7 @@ import { getAdminClient, getSupabase } from './client';
 import type { Tables, TablesInsert } from './client';
 import { jsonObject, jsonStringArray } from './json';
 
-import { throwDuringBuild } from './build';
+import { readError } from './build';
 import { calculateDistance } from '@/lib/geo';
 /**
  * Application-level Attraction type (camelCase)
@@ -188,9 +188,8 @@ export async function getAttractionsNearBrewery(
 
     return attractions;
   } catch (error) {
-    throwDuringBuild(error);
     console.error('Error fetching nearby attractions:', error);
-    return [];
+    throw readError(error);
   }
 }
 
@@ -210,9 +209,8 @@ export async function getAttractionBySlug(slug: string): Promise<Attraction | nu
 
     return dbAttractionToAttraction(data);
   } catch (error) {
-    throwDuringBuild(error);
     console.error('Error fetching attraction by slug:', error);
-    return null;
+    throw readError(error);
   }
 }
 
@@ -258,8 +256,7 @@ export async function fetchAttractionSummaries(): Promise<AttractionSummary[]> {
     }
     return rows;
   } catch (error) {
-    throwDuringBuild(error);
     console.error('Failed to fetch attractions:', error);
-    return [];
+    throw readError(error);
   }
 }

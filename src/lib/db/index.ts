@@ -11,4 +11,3 @@ export type { Tables } from './client';
 export * from './queries';
 export * from './attractions';
 export * from './brewery-data';
-export { throwDuringBuild } from './build';

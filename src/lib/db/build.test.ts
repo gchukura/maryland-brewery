@@ -1,20 +1,19 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { throwDuringBuild } from './build';
+import { describe, expect, it } from 'vitest';
+import { readError } from './build';
 
-describe('throwDuringBuild', () => {
-  const original = process.env.NEXT_PHASE;
-  afterEach(() => {
-    process.env.NEXT_PHASE = original;
+describe('readError', () => {
+  it('passes Errors through', () => {
+    const error = new Error('boom');
+    expect(readError(error)).toBe(error);
   });
 
-  it('rethrows during next build', () => {
-    process.env.NEXT_PHASE = 'phase-production-build';
-    expect(() => throwDuringBuild(new Error('boom'))).toThrow('boom');
-    expect(() => throwDuringBuild({ code: 'PGRST301' })).toThrow('PGRST301');
+  it('wraps Supabase error objects, keeping the message', () => {
+    const error = readError({ message: 'exceed_egress_quota', code: 'PGRST301' });
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain('exceed_egress_quota');
   });
 
-  it('does nothing at runtime', () => {
-    process.env.NEXT_PHASE = 'phase-production-server';
-    expect(() => throwDuringBuild(new Error('boom'))).not.toThrow();
+  it('serializes anything else', () => {
+    expect(readError({ code: 'PGRST301' }).message).toContain('PGRST301');
   });
 });
