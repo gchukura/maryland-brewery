@@ -104,6 +104,7 @@ These describe the code as of 2026-10-27. Fix them in their own PRs, not inciden
   `npm run google:check` tests it. Never put the server key in a stored URL.
 - No `loading.tsx` above a page that calls `notFound()` or `permanentRedirect()`: the loading boundary streams a
   200 first, so 404s become soft 404s and redirects become meta refreshes. `seo:check` probes for this (`STATUS_PROBES`).
-- Data reads return []/null at runtime but must throw during `next build` (`throwDuringBuild`), or a
-  Supabase outage ships empty pages. `server-only` is imported in `src/lib/db/index.ts`, not `client.ts`,
+- Data reads throw on any error (`readError`), at build and at runtime; never catch and return []/null.
+  Empty data during a build ships empty pages; at runtime ISR caches the empty page or 404 (the Nov 2026
+  egress-quota outage 404'd every brewery page). Throwing keeps the last good page. `server-only` is imported in `src/lib/db/index.ts`, not `client.ts`,
   because scripts import the db files directly.

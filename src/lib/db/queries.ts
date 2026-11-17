@@ -11,7 +11,7 @@ import { Brewery, Beer, SocialMedia, OperatingHours, Membership, ReviewThemes } 
 import { normalizeCountyName } from '@/lib/data-utils';
 import { slugify } from '@/lib/slug';
 
-import { isProductionBuild, throwDuringBuild } from './build';
+import { isProductionBuild, readError } from './build';
 /** The type column holds a string or (for one brewery) an array; always return a non-empty array. */
 function normalizeTypes(value: Json | null): string[] {
   const types = (Array.isArray(value) ? jsonStringArray(value) : typeof value === 'string' ? value.split(',') : [])
@@ -275,10 +275,11 @@ export async function fetchBreweryBySlug(slug: string): Promise<Brewery | null> 
     if (!breweryData) return null;
 
     // Fetch beers for this brewery
-    const { data: beersData } = await getSupabase()
+    const { data: beersData, error: beersError } = await getSupabase()
       .from('beers')
       .select('*')
       .eq('brewery_id', breweryData.id);
+    if (beersError) throw beersError;
 
     const beers: Beer[] = (beersData || []).map((beer: Tables<'beers'>) => ({
       name: beer.name,
@@ -289,9 +290,8 @@ export async function fetchBreweryBySlug(slug: string): Promise<Brewery | null> 
 
     return dbBreweryToBrewery(breweryData, beers);
   } catch (error) {
-    throwDuringBuild(error);
     console.error('Error fetching brewery by slug:', error);
-    return null;
+    throw readError(error);
   }
 }
 
@@ -537,9 +537,8 @@ export async function getBreweryReviews(
 
     return { reviews, total: (count ?? rows.length) - (rows.length - reviews.length) };
   } catch (error) {
-    throwDuringBuild(error);
     console.error('Failed to fetch reviews from Supabase:', error);
-    return { reviews: [], total: 0 };
+    throw readError(error);
   }
 }
 
@@ -557,9 +556,8 @@ export async function getBreweryArticles(breweryId: string, limit: number = 5): 
     
     return data || [];
   } catch (error) {
-    throwDuringBuild(error);
     console.error('Failed to fetch brewery articles from Supabase:', error);
-    return [];
+    throw readError(error);
   }
 }
 
@@ -578,9 +576,8 @@ export async function getNeighborhoodsByCity(city: string): Promise<Tables<'mary
     
     return data || [];
   } catch (error) {
-    throwDuringBuild(error);
     console.error('Failed to fetch neighborhoods from Supabase:', error);
-    return [];
+    throw readError(error);
   }
 }
 
@@ -599,9 +596,8 @@ export async function getNeighborhoodBySlug(slug: string): Promise<Tables<'maryl
     
     return data;
   } catch (error) {
-    throwDuringBuild(error);
     console.error('Failed to fetch neighborhood from Supabase:', error);
-    return null;
+    throw readError(error);
   }
 }
 
@@ -620,9 +616,8 @@ export async function getAllNeighborhoods(): Promise<Tables<'maryland_neighborho
 
     return data || [];
   } catch (error) {
-    throwDuringBuild(error);
     console.error('Failed to fetch neighborhoods:', error);
-    return [];
+    throw readError(error);
   }
 }
 
@@ -657,8 +652,7 @@ export async function fetchRegions(): Promise<Region[]> {
       description: row.description || '',
     }));
   } catch (error) {
-    throwDuringBuild(error);
     console.error('Failed to fetch regions from Supabase:', error);
-    return [];
+    throw readError(error);
   }
 }

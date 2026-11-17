@@ -10,7 +10,6 @@ import {
   getIndexableAttractions,
   getIndexableNeighborhoods,
   getProcessedBreweryData,
-  throwDuringBuild,
 } from '@/lib/db';
 import {
   NEIGHBORHOOD_INDEX_RADIUS_MILES,
@@ -65,21 +64,15 @@ export async function generateStaticParams() {
     .map((b) => ({ slug: b.slug }));
 }
 
-/** The listed brewery for a URL segment (a slug, or an old id URL), or null. Never bakes a 404 into the build. */
+/**
+ * The listed brewery for a URL segment (a slug, or an old id URL), or null.
+ * A data error throws instead of returning null, so an outage never turns into a cached 404.
+ */
 async function findListed(slug: string): Promise<Brewery | null> {
-  try {
-    const processed = await getProcessedBreweryData();
-    return (
-      processed.breweries.find((b) => b.slug === slug || b.id === slug) ?? null
-    );
-  } catch (error) {
-    console.error(
-      `Brewery data for ${slug}:`,
-      error instanceof Error ? error.message : error
-    );
-    throwDuringBuild(error);
-    return null;
-  }
+  const processed = await getProcessedBreweryData();
+  return (
+    processed.breweries.find((b) => b.slug === slug || b.id === slug) ?? null
+  );
 }
 
 export async function generateMetadata({ params }: BreweryPageProps) {
