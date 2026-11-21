@@ -43,7 +43,14 @@ export interface Attraction {
  * Convert database attraction to application attraction type
  */
 /** The columns the app reads; get_nearby_attractions returns these and not the pSEO columns. */
-type AttractionRow = Omit<Tables<'maryland_attractions'>, 'category' | 'duplicate_of' | 'is_pseo_eligible'>;
+type PseoColumns =
+  | 'category'
+  | 'duplicate_of'
+  | 'is_pseo_eligible'
+  | 'nearby_brewery_count_5mi'
+  | 'nearby_brewery_count_10mi'
+  | 'has_pseo_page';
+type AttractionRow = Omit<Tables<'maryland_attractions'>, PseoColumns>;
 
 function dbAttractionToAttraction(dbAttraction: AttractionRow): Attraction {
   return {
