@@ -45,7 +45,9 @@ These describe the code as of 2026-10-27. Fix them in their own PRs, not inciden
   `ATTRACTION_PAGE_MIN_REVIEWS` get the full template (intro, `attraction_breweries`, nearby attractions); others the basic list.
 - Attraction data fixes go in `maryland_attraction_overrides` (keyed by Google `place_id`: hidden, display_name, category,
   merge_into), never in the imported columns; a trigger re-applies them on every insert/update, so a re-import keeps them.
-  After editing it: `select apply_attraction_overrides(); select refresh_attraction_breweries();`. Hidden places 404, merged
+  After editing it: `select apply_attraction_overrides(); select refresh_attraction_breweries();`. Brewery changes need
+  nothing: adding, removing or moving a brewery marks `attraction_refresh_state` dirty and a pg_cron job
+  (`refresh-attraction-breweries`, every 30 min) rebuilds `attraction_breweries` and `has_pseo_page`. Hidden places 404, merged
   ones 308 to the place they were merged into. Undo: `supabase/rollbacks/attraction_overrides.down.sql`.
 - Redirects: pattern-only ones (-md, amenity aliases) are 301s in `src/middleware.ts`; ones that need data
   (city size, neighborhoods, brewery ids) use `permanentRedirect()` in the page, which sends 308.
