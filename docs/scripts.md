@@ -35,7 +35,7 @@ The maintenance scripts live in `scripts/*.ts` and run with `tsx` through the np
 | `data:enrich:amenities` | Infer missing amenity flags from review text | yes |
 | `data:attractions` | Fetch Maryland attractions from Google Places into `maryland_attractions` | yes |
 | `seo:count-urls` | Estimate the number of sitemap URLs (currently broken, see below) | no |
-| `indexnow` | Submit live sitemap URLs to IndexNow (all, or only new ones; runs after each production deploy) | no |
+| `indexnow` | Submit new, changed and removed sitemap URLs to IndexNow (runs after each production deploy) | no |
 | `lint:links` | Statically check internal `href`s against `src/app` routes (runs in CI) | no |
 | `seo:check` | Crawl every sitemap URL of a running build: status, redirects, canonical, noindex, title/description length | no |
 | `seo:fixture` | Refresh the real-name snapshot the page-title test uses | no |
@@ -259,12 +259,14 @@ What it does: Meant to print a breakdown of how many URLs the sitemap should con
 
 File: `scripts/submit-indexnow.ts`
 
-What it does: Checks that the IndexNow key file `https://www.marylandbrewery.com/457bccd4eef437d8877d15d3e947fa02.txt` is reachable (it is served from `public/`). It then fetches the live `https://www.marylandbrewery.com/sitemap.xml` and POSTs every URL to `api.indexnow.org` in batches of up to 10,000. Bing and Yandex use IndexNow; Google does not. The host and key are hard-coded. Because it reads the live sitemap, it only submits what is already deployed.
+What it does: Checks that the IndexNow key file `https://www.marylandbrewery.com/457bccd4eef437d8877d15d3e947fa02.txt` is reachable (it is served from `public/`), fetches the live `https://www.marylandbrewery.com/sitemap.xml`, and POSTs URLs to `api.indexnow.org`. Bing, Yandex, Seznam, Naver and Yep use IndexNow; Google does not. The host and key are hard-coded. Because it reads the live sitemap, it only sees what is deployed.
+
+It submits only URLs that are new, whose `<lastmod>` changed, or that left the sitemap since the last run (IndexNow is for added, updated and deleted URLs). Submitting unchanged URLs over and over got the earlier automatic version flagged in Bing Webmaster Tools. `lastmod` comes from the data (a brewery's or attraction's `updated_at`, the newest among a listing's breweries), so it changes when the page's data does; the few static pages have none and are only submitted when they first appear.
 
 - Env: none.
 - Writes to Supabase: **no**. It makes an external POST to IndexNow.
-- Flags: `--previous <file>` submits only sitemap URLs missing from that JSON list (every URL if the file does not exist). `--save <file>` writes the current sitemap URLs there after a successful submission. It exits with code 1 if any batch fails.
-- How often: automatically. `.github/workflows/indexnow.yml` runs it with both flags after every successful production deploy, so each deploy submits only new pages (it keeps the URL list as an Actions artifact). Pages whose content changed are not resubmitted; the sitemap's `lastmod` is the build time, so it cannot tell them apart. Run it by hand, with no flags, only to resubmit everything after a large content change. Do not do that often, because IndexNow can rate-limit (HTTP 429).
+- Flags: `--previous <file>` diffs against that saved URL -> lastmod map (an older plain URL list also works); without the file it saves a baseline and submits nothing. `--save <file>` writes the current map there after a successful run. `--dry-run` lists what it would send and sends nothing. `--all` submits every sitemap URL: rarely right, and the kind of submission Bing flagged. It exits with code 1 if a batch fails.
+- How often: automatically. `.github/workflows/indexnow.yml` runs it with `--previous` and `--save` when Vercel's "Vercel" commit status turns success on `main` (a production deploy), keeping the map as an Actions artifact for the next run. It can also be run from the Actions tab. Data changes without a deploy (the sync) are picked up by the next deploy.
 
 ### `npm run lint:links`
 
