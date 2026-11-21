@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test';
 
 const FULL = '/breweries/7-locks-brewing'; // photos, hours, beers, reviews, news
-const SPARSE = '/breweries/brothers-ridge-cider'; // no hours, description or photos
+// No hours, photos, beers or website. Real data, so it can fill in (Brothers Ridge Cider did when
+// the beer import gave it a menu): pick another brewery with empty hours, no photos and no beers.
+const SPARSE = '/breweries/stillwater-artisanal-ales';
 
 test('the lightbox works from the keyboard and returns focus', async ({
   page,
@@ -88,7 +90,7 @@ test('a sparse page hides empty sections instead of printing placeholders', asyn
   page,
 }) => {
   await page.goto(SPARSE);
-  await expect(page.locator('h1')).toHaveText('Brothers Ridge Cider');
+  await expect(page.locator('h1')).toHaveText('Stillwater Artisanal Ales');
   for (const name of ['On tap', 'Hours'])
     await expect(page.getByRole('heading', { name, exact: true })).toHaveCount(
       0
