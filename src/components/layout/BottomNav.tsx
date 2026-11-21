@@ -18,7 +18,7 @@ const ITEMS = [
     href: '/cities',
     icon: LayoutGrid,
     match: (p: string) =>
-      /^\/(cities|counties|region|amenities|type|best-breweries|neighborhoods|open)/.test(
+      /^\/(cities|counties|region|amenities|type|best-breweries|neighborhoods|open|near|breweries$)/.test(
         p
       ),
   },

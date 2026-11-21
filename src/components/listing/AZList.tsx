@@ -1,14 +1,13 @@
 'use client';
 
 /**
- * "All [type], A to Z" on a /near type page. Every group and link is in the HTML (crawlable); the
- * letter bar jumps to anchors, the search box filters by name, and big types collapse each letter
- * after a few rows behind a "Show all" button (the hidden rows stay in the HTML).
+ * An A-to-Z list of links (the /near type pages, /breweries). Every group and link is shown and in
+ * the HTML, so each item is one click from the page; the letter bar jumps to anchors and the
+ * search box filters by name.
  */
 import { useId, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Search } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 export interface AZPlace {
   name: string;
@@ -19,10 +18,10 @@ export interface AZPlace {
 interface AZListProps {
   groups: { letter: string; items: AZPlace[] }[];
   letters: string[];
-  /** Rows shown per letter before "Show all" (no collapsing when unset) */
-  collapseAfter?: number;
   /** "museums", for the search label */
   noun: string;
+  /** Links go to `${basePath}${slug}` */
+  basePath?: string;
 }
 
 const anchor = (letter: string) => `letter-${letter === '#' ? 'num' : letter.toLowerCase()}`;
@@ -34,10 +33,9 @@ function fold(s: string): string {
     .toLowerCase();
 }
 
-export default function AZList({ groups, letters, collapseAfter, noun }: AZListProps) {
+export default function AZList({ groups, letters, noun, basePath = '/near/' }: AZListProps) {
   const id = useId();
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState<Set<string>>(new Set());
   const q = fold(query.trim());
 
   const shown = useMemo(
@@ -99,7 +97,6 @@ export default function AZList({ groups, letters, collapseAfter, noun }: AZListP
 
       <div className="columns-1 gap-8 sm:columns-2 lg:columns-3">
         {shown.map((g) => {
-          const collapsed = !q && collapseAfter !== undefined && g.items.length > collapseAfter && !open.has(g.letter);
           return (
             <section
               key={g.letter}
@@ -112,12 +109,12 @@ export default function AZList({ groups, letters, collapseAfter, noun }: AZListP
                 {g.letter}
               </h3>
               <ul className="m-0 flex list-none flex-col p-0">
-                {g.items.map((p, i) => {
+                {g.items.map((p) => {
                   const match = !q || g.matches.includes(p);
                   return (
-                    <li key={p.slug} hidden={!match || (collapsed && i >= (collapseAfter ?? 0))}>
+                    <li key={p.slug} hidden={!match}>
                       <Link
-                        href={`/near/${p.slug}`}
+                        href={`${basePath}${p.slug}`}
                         className="flex min-h-11 items-center gap-2 border-b border-line py-1.5 text-[15px] text-ink hover:text-brand-red"
                       >
                         <span className="min-w-0 flex-1">{p.name}</span>
@@ -127,16 +124,6 @@ export default function AZList({ groups, letters, collapseAfter, noun }: AZListP
                   );
                 })}
               </ul>
-              {collapsed && (
-                <button
-                  type="button"
-                  aria-expanded={false}
-                  onClick={() => setOpen((s) => new Set(s).add(g.letter))}
-                  className={cn('mt-1 flex min-h-11 items-center text-sm font-semibold text-brand-red hover:text-brand-red-dark')}
-                >
-                  Show all {g.items.length}
-                </button>
-              )}
             </section>
           );
         })}

@@ -52,12 +52,6 @@ const nextConfig: NextConfig = {
         destination: '/type',
         permanent: true,
       },
-      // Redirect /breweries to homepage (permanent - all breweries page doesn't exist)
-      {
-        source: '/breweries',
-        destination: '/',
-        permanent: true,
-      },
       // Redirect singular to plural for consistency
       {
         source: '/city',
