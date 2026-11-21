@@ -166,6 +166,14 @@ export function formatDayHours(text: string | null | undefined): string {
   return ranges.map((r) => `${formatMinutes(r.open)} – ${formatMinutes(r.close)}`).join(', ');
 }
 
+/** Today's hours in Maryland: "Today 12:00 PM – 10:00 PM", "Closed today", or null when unknown. */
+export function todayHours(hours: WeeklyHours | null | undefined, date = new Date(), timeZone = MARYLAND_TZ): string | null {
+  const text = hours?.[zonedDayAndMinutes(date, timeZone).day];
+  const ranges = parseDayHours(text);
+  if (ranges === null) return null;
+  return ranges.length === 0 ? 'Closed today' : `Today ${formatDayHours(text)}`;
+}
+
 /** Whether the brewery has any opening hours on a given day. */
 export function isOpenOnDay(hours: WeeklyHours | null | undefined, day: string): boolean {
   if (!hours || !(DAYS as readonly string[]).includes(day)) return false;

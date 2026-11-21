@@ -16,6 +16,7 @@ import {
   type ReactNode,
 } from 'react';
 import Link from 'next/link';
+import { Landmark } from 'lucide-react';
 import {
   APIProvider,
   AdvancedMarker,
@@ -38,6 +39,13 @@ export interface MapPoint {
   open: boolean;
 }
 
+/** The place a page is about (an attraction), drawn with its own pin, never clustered. */
+export interface MapLandmark {
+  name: string;
+  latitude: number;
+  longitude: number;
+}
+
 interface BreweryMapProps {
   /** Every brewery the map can show. Markers stay mounted; filtering only changes `visible`. */
   points: MapPoint[];
@@ -48,6 +56,7 @@ interface BreweryMapProps {
   onHighlight?: (slug: string | null) => void;
   /** One brewery, no clustering or cards (brewery pages) */
   single?: boolean;
+  landmark?: MapLandmark | null;
   className?: string;
 }
 
@@ -63,6 +72,14 @@ const position = (b: ListingBrewery) => ({
   lat: b.latitude as number,
   lng: b.longitude as number,
 });
+
+function LandmarkPin() {
+  return (
+    <div className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-ink bg-paper shadow-[0_2px_6px_rgba(20,20,20,0.35)]">
+      <Landmark className="h-5 w-5 text-ink" aria-hidden="true" />
+    </div>
+  );
+}
 
 function Pin({ open, active }: { open: boolean; active: boolean }) {
   return (
@@ -105,6 +122,7 @@ function Markers({
   highlighted,
   onHighlight,
   single,
+  landmark,
 }: Required<Pick<BreweryMapProps, 'points'>> &
   Omit<BreweryMapProps, 'className' | 'points'>) {
   const map = useMap();
@@ -181,27 +199,33 @@ function Markers({
     return callback;
   }, []);
 
-  // Frame the visible pins whenever the set changes (filters)
+  const landmarkPosition = useMemo(
+    () => (landmark ? { lat: landmark.latitude, lng: landmark.longitude } : null),
+    [landmark]
+  );
+
+  // Frame the visible pins (and the landmark) whenever the set changes (filters)
   const key = points
     .filter((p) => isShown(p.brewery.slug))
     .map((p) => p.brewery.slug)
     .join('|');
   useEffect(() => {
     if (!map || single) return;
-    const located = points.filter(
-      (p) => hasCoords(p) && isShown(p.brewery.slug)
-    );
+    const located = points
+      .filter((p) => hasCoords(p) && isShown(p.brewery.slug))
+      .map((p) => position(p.brewery));
+    if (landmarkPosition) located.push(landmarkPosition);
     if (located.length === 0) return;
     if (located.length === 1) {
-      map.setCenter(position(located[0].brewery));
+      map.setCenter(located[0]);
       map.setZoom(13);
       return;
     }
     const bounds = new google.maps.LatLngBounds();
-    located.forEach((p) => bounds.extend(position(p.brewery)));
+    located.forEach((p) => bounds.extend(p));
     map.fitBounds(bounds, 48);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- key stands for points
-  }, [map, key, single]);
+  }, [map, key, single, landmarkPosition]);
 
   // Stable position objects: a new {lat, lng} each render makes the library re-set every marker's
   // position on every render (and a half-initialized map throws on that)
@@ -222,6 +246,11 @@ function Markers({
 
   return (
     <>
+      {landmark && landmarkPosition && (
+        <AdvancedMarker position={landmarkPosition} title={landmark.name} zIndex={3000} clickable={false}>
+          <LandmarkPin />
+        </AdvancedMarker>
+      )}
       {points.filter(hasCoords).map(({ brewery, open }) => {
         const active =
           highlighted === brewery.slug || selected === brewery.slug;
@@ -397,6 +426,7 @@ export default function BreweryMap({
   highlighted = null,
   onHighlight,
   single = false,
+  landmark = null,
   className,
 }: BreweryMapProps) {
   const authFailed = useMapAuthFailed();
@@ -430,6 +460,7 @@ export default function BreweryMap({
                 highlighted={highlighted}
                 onHighlight={onHighlight}
                 single={single}
+                landmark={landmark}
               />
             </Map>
           </APIProvider>

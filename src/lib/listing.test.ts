@@ -230,3 +230,25 @@ describe('sortResults', () => {
     expect(results.map((x) => x.brewery.slug)).toEqual(['a', 'b', 'c', 'd']);
   });
 });
+
+describe('applyFilters: stored distances (attraction pages)', () => {
+  const origin = { latitude: 39.28, longitude: -76.62 };
+  const list = [
+    brewery({ slug: 'far', latitude: 39.3, longitude: -76.6, distance: 2.4 }),
+    brewery({ slug: 'near', latitude: 39.29, longitude: -76.61, distance: 0.8 }),
+  ];
+  const filters = parseFilters(null, { sort: 'distance' });
+
+  it("uses the page's distances when asked", () => {
+    const results = applyFilters(list, filters, { origin, storedDistances: true });
+    expect(results.map((r) => [r.brewery.slug, r.distance])).toEqual([
+      ['near', 0.8],
+      ['far', 2.4],
+    ]);
+  });
+
+  it('measures from the origin otherwise (a visitor sorting by their location)', () => {
+    const results = applyFilters(list, filters, { origin });
+    expect(results.every((r) => r.distance !== 0.8 && r.distance !== 2.4)).toBe(true);
+  });
+});

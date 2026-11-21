@@ -36,6 +36,7 @@ import type { TablesInsert } from '@/lib/db/client';
 import { getBreweryDataFromSupabase } from '@/lib/db/queries';
 import { googleServerKey } from './lib/google';
 import { slugify } from '@/lib/slug';
+import { RESERVED_PLACE_SLUGS } from '@/lib/attractions';
 
 const GOOGLE_PLACES_API_KEY = googleServerKey();
 
@@ -290,7 +291,9 @@ async function convertPlaceToAttraction(place: any, placeDetails?: any): Promise
     }
     
     const name = details.name || place.name || 'Unknown';
-    const slug = slugify(name);
+    // /near/{type} pages own these slugs (src/lib/attractions.ts); an attraction named "Parks" gets parks-place
+    const base = slugify(name);
+    const slug = RESERVED_PLACE_SLUGS.has(base) ? `${base}-place` : base;
     
     const geometry = details.geometry || place.geometry;
     const lat = geometry?.location?.lat;

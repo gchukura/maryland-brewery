@@ -10,6 +10,8 @@ const PAGES = [
   ['brewery', '/breweries/7-locks-brewing'],
   ['neighborhoods index', '/neighborhoods'],
   ['things to do index', '/near'],
+  ['attraction', '/near/oriole-park-at-camden-yards'],
+  ['place type', '/near/parks'],
   ['FAQ', '/faq'],
   ['contact', '/contact'],
 ] as const;

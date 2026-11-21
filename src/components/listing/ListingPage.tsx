@@ -9,6 +9,7 @@ import {
 } from '@/lib/listing';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import BreweryListMap from './BreweryListMap';
+import type { MapLandmark } from '@/components/maps/BreweryMapLazy';
 import OpenNowCount from './OpenNowCount';
 import RelatedLinks, { type RelatedGroup } from './RelatedLinks';
 
@@ -23,6 +24,7 @@ export type ListingScope =
   | 'open-now'
   | 'day'
   | 'neighborhood'
+  | 'attraction'
   | 'state';
 
 interface ListingPageProps {
@@ -30,8 +32,8 @@ interface ListingPageProps {
   /** The h1 */
   title: string;
   breadcrumbs: Crumb[];
-  /** In the page's default order. Sorted by rating here unless the scope brings its own order (best, neighborhood). */
-  breweries: Brewery[];
+  /** In the page's default order. Sorted by rating here unless the scope brings its own order (best, neighborhood, attraction). */
+  breweries: ListingInput[];
   /** Middle part of the summary line, e.g. "Frederick County" */
   context?: string;
   /** Replaces the computed summary line (neighborhoods describe distances instead) */
@@ -44,13 +46,24 @@ interface ListingPageProps {
   related?: RelatedGroup[];
   /** Anything else under the list (e.g. attractions) */
   children?: ReactNode;
+  /** Show each brewery's hours for today (attraction pages) */
+  showTodayHours?: boolean;
+  /** A pin on the map for the place the page is about (attraction pages) */
+  landmark?: MapLandmark | null;
 }
+
+/** A brewery, optionally with its distance from the page origin and the badges to show. */
+type ListingInput = Brewery & { distance?: number; badges?: string[] };
 
 const SCOPE_SORTS: Partial<
   Record<ListingScope, { defaults: FilterDefaults; sorts: SortKey[] }>
 > = {
   best: { defaults: { sort: 'rank' }, sorts: ['rank', 'open', 'name'] },
   neighborhood: {
+    defaults: { sort: 'distance' },
+    sorts: ['distance', 'open', 'rank', 'name'],
+  },
+  attraction: {
     defaults: { sort: 'distance' },
     sorts: ['distance', 'open', 'rank', 'name'],
   },
@@ -67,7 +80,7 @@ const DEFAULT_SORTS = {
 const rating = (b: Brewery) => b.googleRating || b.yelpRating || 0;
 
 /** Highest rated first, then by name: the "Top rated" order. */
-export function byRating(breweries: Brewery[]): Brewery[] {
+export function byRating<T extends Brewery>(breweries: T[]): T[] {
   return [...breweries].sort(
     (a, b) => rating(b) - rating(a) || a.name.localeCompare(b.name)
   );
@@ -86,12 +99,18 @@ export default function ListingPage({
   origin = null,
   related = [],
   children,
+  showTodayHours = false,
+  landmark = null,
 }: ListingPageProps) {
   const ordered =
-    scope === 'best' || scope === 'neighborhood'
+    scope === 'best' || scope === 'neighborhood' || scope === 'attraction'
       ? breweries
       : byRating(breweries);
-  const listing = ordered.map(toListingBrewery);
+  const listing = ordered.map((b) => ({
+    ...toListingBrewery(b),
+    ...(b.distance !== undefined ? { distance: b.distance } : {}),
+    ...(b.badges ? { badges: b.badges } : {}),
+  }));
   const { defaults, sorts } = SCOPE_SORTS[scope] ?? DEFAULT_SORTS;
   const renderedAt = Date.now();
   const count = listing.length;
@@ -134,6 +153,8 @@ export default function ListingPage({
           locked={locked}
           origin={origin}
           renderedAt={renderedAt}
+          showTodayHours={showTodayHours}
+          landmark={landmark}
         />
       </div>
       {children}

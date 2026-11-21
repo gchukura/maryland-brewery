@@ -39,7 +39,14 @@ These describe the code as of 2026-10-27. Fix them in their own PRs, not inciden
 - Neighborhood rules (radii, noindex, attraction filter) live in `src/lib/neighborhoods.ts`; the 5+
   best-of rule lives in `src/lib/best-breweries.ts`. Old `{neighborhood}-{city}-md` URLs under
   `/best-breweries`, `/best-breweries/near` and `/cities/near` redirect to `/neighborhoods/[slug]`.
-- `/near/[slug]` is attraction pages, not neighborhoods.
+- `/near/[slug]` is attraction pages, not neighborhoods, and also the place-type pages (`/near/museums`): type slugs
+  (`PLACE_TYPES` in `src/lib/attractions.ts`) are checked first and reserved, so no attraction may use one. `/near` is the
+  hub (type cards, place search via `/near-places.json`). Attractions with `has_pseo_page` and at least
+  `ATTRACTION_PAGE_MIN_REVIEWS` get the full template (intro, `attraction_breweries`, nearby attractions); others the basic list.
+- Attraction data fixes go in `maryland_attraction_overrides` (keyed by Google `place_id`: hidden, display_name, category,
+  merge_into), never in the imported columns; a trigger re-applies them on every insert/update, so a re-import keeps them.
+  After editing it: `select apply_attraction_overrides(); select refresh_attraction_breweries();`. Hidden places 404, merged
+  ones 308 to the place they were merged into. Undo: `supabase/rollbacks/attraction_overrides.down.sql`.
 - Redirects: pattern-only ones (-md, amenity aliases) are 301s in `src/middleware.ts`; ones that need data
   (city size, neighborhoods, brewery ids) use `permanentRedirect()` in the page, which sends 308.
 - `/blog` temporarily redirects to `/`.

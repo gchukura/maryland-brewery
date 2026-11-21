@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import names from './__fixtures__/real-names.json';
-import { MAX_DESCRIPTION_LENGTH, MAX_PAGE_TITLE_LENGTH, MIN_DESCRIPTION_LENGTH, TITLE_SUFFIX, buildMetadata } from './metadata';
+import { MAX_ABSOLUTE_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH, MAX_PAGE_TITLE_LENGTH, MIN_DESCRIPTION_LENGTH, TITLE_SUFFIX, buildMetadata } from './metadata';
 import {
   amenityMeta,
   attractionMeta,
+  attractionPageMeta,
   bestBreweriesMeta,
   breweryMeta,
   cityAmenityMeta,
@@ -11,18 +12,20 @@ import {
   countyMeta,
   neighborhoodMeta,
   openOnDayMeta,
+  placeTypeMeta,
   regionMeta,
   typeMeta,
   type PageMeta,
 } from './page-meta';
 import { AMENITIES } from '../amenities';
+import { OTHER_PLACE_TYPE, PLACE_TYPES } from '../attractions';
 
 // Counts in titles are at most three digits; use the longest so the test covers the worst case.
 const N = 151;
 
 function overflow(label: string, meta: PageMeta): string[] {
   const problems: string[] = [];
-  if (meta.title.length > MAX_PAGE_TITLE_LENGTH) {
+  if (meta.absoluteTitle ? meta.title.length > MAX_ABSOLUTE_TITLE_LENGTH : meta.title.length > MAX_PAGE_TITLE_LENGTH) {
     problems.push(`${label}: title ${meta.title.length + TITLE_SUFFIX.length} chars: "${meta.title}${TITLE_SUFFIX}"`);
   }
   if (meta.description.length > MAX_DESCRIPTION_LENGTH) {
@@ -52,6 +55,70 @@ describe('page titles and descriptions fit for every real name', () => {
   it(`checks ${cases.length} generated pages`, () => {
     const problems = cases.flatMap(([label, meta]) => overflow(label, meta));
     expect(problems).toEqual([]);
+  });
+});
+
+describe('attractionPageMeta', () => {
+  // The three list shapes, with the widest numbers each can show
+  const shapes = [
+    [10, 10, 'all'],
+    [23, 2, 'dense'],
+    [5, 9.9, 'nearest'],
+  ] as const;
+  const cases = names.attractionPages.flatMap((a) =>
+    shapes.map(([listed, radius, mode]): [string, PageMeta, string] => [
+      `attraction page ${a.name} (${mode})`,
+      attractionPageMeta(a.name, a.city, listed, radius, mode),
+      a.city,
+    ])
+  );
+
+  it(`fits for ${cases.length} real attraction pages`, () => {
+    expect(cases.flatMap(([label, meta]) => overflow(label, meta))).toEqual([]);
+  });
+
+  it('names the city in every title and description', () => {
+    const missing = cases.filter(([, meta, city]) => !meta.title.includes(city) || !meta.description.includes(city));
+    expect(missing.map(([label, meta]) => `${label}: "${meta.title}" / "${meta.description}"`)).toEqual([]);
+  });
+
+  it('keeps the brand suffix when it fits and drops it before the city', () => {
+    expect(attractionPageMeta('Baker Park', 'Frederick', 10, 10, 'all')).toMatchObject({
+      title: 'Breweries near Baker Park, Frederick',
+      absoluteTitle: false,
+    });
+    expect(attractionPageMeta('Oriole Park at Camden Yards', 'Baltimore', 9, 2, 'dense')).toMatchObject({
+      title: 'Breweries near Oriole Park at Camden Yards, Baltimore',
+      absoluteTitle: true,
+    });
+    expect(attractionPageMeta('The Maryland Zoo in Baltimore', 'Baltimore', 9, 2, 'dense').title).toBe(
+      'Breweries near The Maryland Zoo in Baltimore'
+    );
+  });
+
+  it('describes the list the page shows', () => {
+    expect(attractionPageMeta('Baker Park', 'Frederick', 2, 10, 'all').description).toMatch(/^Both breweries within 10 miles/);
+    expect(attractionPageMeta('Patterson Park', 'Baltimore', 9, 2, 'dense').description).toMatch(/^The 9 breweries within 2 miles/);
+    expect(attractionPageMeta('Rockburn Branch Park', 'Elkridge', 5, 2.6, 'nearest').description).toMatch(/^The 5 breweries closest to/);
+  });
+});
+
+describe('placeTypeMeta', () => {
+  // Every type, with the longest real attraction names as its examples
+  const longest = [...names.attractionPages].map((a) => a.name).sort((x, y) => y.length - x.length);
+  const cases = [...PLACE_TYPES, OTHER_PLACE_TYPE].flatMap((t) => [
+    [`${t.slug} long examples`, placeTypeMeta(t.title, 999, longest.slice(0, 2))] as [string, PageMeta],
+    [`${t.slug} one example`, placeTypeMeta(t.title, 3, ['National Aquarium'])] as [string, PageMeta],
+    [`${t.slug} no examples`, placeTypeMeta(t.title, 3, [])] as [string, PageMeta],
+  ]);
+
+  it(`fits for ${cases.length} type pages`, () => {
+    expect(cases.flatMap(([label, meta]) => overflow(label, meta))).toEqual([]);
+  });
+
+  it('title-cases the type and keeps "breweries"', () => {
+    expect(placeTypeMeta('Museums', 205, ['The Walters Art Museum', 'Port Discovery']).title).toBe('Museums Near Maryland Breweries');
+    expect(placeTypeMeta('Art galleries and studios', 113, []).title).toBe('Art Galleries and Studios Near Breweries');
   });
 });
 

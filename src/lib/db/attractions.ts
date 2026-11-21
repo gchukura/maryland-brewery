@@ -37,6 +37,11 @@ export interface Attraction {
   lastUpdated?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** Shown instead of `name` when set (maryland_attraction_overrides) */
+  displayName?: string;
+  /** Not shown anywhere; a hidden duplicate points at the place it was merged into */
+  isHidden?: boolean;
+  duplicateOf?: string;
 }
 
 /**
@@ -49,11 +54,17 @@ type PseoColumns =
   | 'is_pseo_eligible'
   | 'nearby_brewery_count_5mi'
   | 'nearby_brewery_count_10mi'
-  | 'has_pseo_page';
-type AttractionRow = Omit<Tables<'maryland_attractions'>, PseoColumns>;
+  | 'has_pseo_page'
+  | 'is_hidden'
+  | 'display_name';
+type AttractionRow = Omit<Tables<'maryland_attractions'>, PseoColumns> &
+  Partial<Pick<Tables<'maryland_attractions'>, 'display_name' | 'is_hidden' | 'duplicate_of'>>;
 
 function dbAttractionToAttraction(dbAttraction: AttractionRow): Attraction {
   return {
+    displayName: dbAttraction.display_name ?? undefined,
+    isHidden: dbAttraction.is_hidden ?? false,
+    duplicateOf: dbAttraction.duplicate_of ?? undefined,
     id: dbAttraction.id,
     placeId: dbAttraction.place_id,
     name: dbAttraction.name,
@@ -236,6 +247,14 @@ export interface AttractionSummary {
   latitude: number;
   longitude: number;
   updatedAt?: string;
+  /** For grouping the /near index (src/lib/attractions.ts); null when Google gives none we use */
+  category: string | null;
+  /** maryland_attraction_overrides: not listed anywhere */
+  isHidden: boolean;
+  hasPseoPage: boolean;
+  ratingCount: number | null;
+  /** Breweries within 10 miles (refresh_attraction_breweries) */
+  nearbyBreweries: number;
 }
 
 /**
@@ -248,20 +267,25 @@ export async function fetchAttractionSummaries(): Promise<AttractionSummary[]> {
     for (let from = 0; ; from += 1000) {
       const { data, error } = await getSupabase()
         .from('maryland_attractions')
-        .select('slug, name, city, type, google_types, latitude, longitude, updated_at')
+        .select('slug, name, display_name, is_hidden, city, type, google_types, latitude, longitude, updated_at, category, has_pseo_page, rating_count, nearby_brewery_count_10mi')
         .order('slug')
         .range(from, from + 999);
       if (error) throw error;
       rows.push(
         ...data.map((a) => ({
           slug: a.slug,
-          name: a.name,
+          name: a.display_name ?? a.name,
           city: a.city ?? null,
           type: a.type,
           googleTypes: jsonStringArray(a.google_types),
           latitude: a.latitude,
           longitude: a.longitude,
           updatedAt: a.updated_at ?? undefined,
+          category: a.category,
+          isHidden: a.is_hidden,
+          hasPseoPage: a.has_pseo_page,
+          ratingCount: a.rating_count,
+          nearbyBreweries: a.nearby_brewery_count_10mi,
         }))
       );
       if (data.length < 1000) break;
@@ -271,5 +295,71 @@ export async function fetchAttractionSummaries(): Promise<AttractionSummary[]> {
     throwDuringBuild(error);
     console.error('Failed to fetch attractions:', error);
     return [];
+  }
+}
+
+/** An attraction page (src/lib/attractions.ts isAttractionPage) and its breweries within 10 miles. */
+export interface AttractionPageData {
+  id: string;
+  slug: string;
+  name: string;
+  city: string | null;
+  county: string | null;
+  category: string | null;
+  latitude: number;
+  longitude: number;
+  updatedAt?: string;
+  /** Nearest first (attraction_breweries.rank) */
+  breweries: { breweryId: string; distanceMiles: number }[];
+}
+
+/**
+ * The attraction behind an attraction page, or null when the slug isn't one (not has_pseo_page,
+ * or under the review threshold). Selects only our own fields: Google's description, photos and
+ * rating text are never shown on these pages.
+ */
+export async function fetchAttractionPage(slug: string, minReviews: number): Promise<AttractionPageData | null> {
+  try {
+    const { data, error } = await getSupabase()
+      .from('maryland_attractions')
+      .select(
+        'id, slug, name, display_name, city, county, category, latitude, longitude, updated_at, attraction_breweries(brewery_id, distance_miles, rank)'
+      )
+      .eq('slug', slug)
+      .eq('has_pseo_page', true)
+      .gte('rating_count', minReviews)
+      .order('rank', { referencedTable: 'attraction_breweries' })
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return {
+      id: data.id,
+      slug: data.slug,
+      name: data.display_name ?? data.name,
+      city: data.city ?? null,
+      county: data.county ?? null,
+      category: data.category,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      updatedAt: data.updated_at ?? undefined,
+      breweries: data.attraction_breweries.map((r) => ({ breweryId: r.brewery_id, distanceMiles: r.distance_miles })),
+    };
+  } catch (error) {
+    throwDuringBuild(error);
+    console.error(`Error fetching attraction page ${slug}:`, error);
+    return null;
+  }
+}
+
+/** The slug of an attraction by id (where a merged duplicate's page redirects). */
+export async function fetchAttractionSlug(id: string): Promise<string | null> {
+  try {
+    const { data, error } = await getSupabase().from('maryland_attractions').select('slug, is_hidden').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data && !data.is_hidden ? data.slug : null;
+  } catch (error) {
+    throwDuringBuild(error);
+    console.error(`Error fetching attraction ${id}:`, error);
+    return null;
   }
 }

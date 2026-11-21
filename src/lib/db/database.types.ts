@@ -300,6 +300,48 @@ export type Database = {
           },
         ]
       }
+      maryland_attraction_overrides: {
+        Row: {
+          category: string | null
+          created_at: string
+          display_name: string | null
+          hidden: boolean
+          merge_into_place_id: string | null
+          place_id: string
+          previous_category: string | null
+          previous_duplicate_of: string | null
+          previous_is_pseo_eligible: boolean | null
+          reason: string | null
+          source: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          display_name?: string | null
+          hidden?: boolean
+          merge_into_place_id?: string | null
+          place_id: string
+          previous_category?: string | null
+          previous_duplicate_of?: string | null
+          previous_is_pseo_eligible?: boolean | null
+          reason?: string | null
+          source?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          display_name?: string | null
+          hidden?: boolean
+          merge_into_place_id?: string | null
+          place_id?: string
+          previous_category?: string | null
+          previous_duplicate_of?: string | null
+          previous_is_pseo_eligible?: boolean | null
+          reason?: string | null
+          source?: string
+        }
+        Relationships: []
+      }
       maryland_attractions: {
         Row: {
           category: string | null
@@ -307,11 +349,13 @@ export type Database = {
           county: string | null
           created_at: string | null
           description: string | null
+          display_name: string | null
           duplicate_of: string | null
           google_types: Json | null
           has_pseo_page: boolean
           hours: Json | null
           id: string
+          is_hidden: boolean
           is_pseo_eligible: boolean
           last_updated: string | null
           latitude: number
@@ -339,11 +383,13 @@ export type Database = {
           county?: string | null
           created_at?: string | null
           description?: string | null
+          display_name?: string | null
           duplicate_of?: string | null
           google_types?: Json | null
           has_pseo_page?: boolean
           hours?: Json | null
           id?: string
+          is_hidden?: boolean
           is_pseo_eligible?: boolean
           last_updated?: string | null
           latitude: number
@@ -371,11 +417,13 @@ export type Database = {
           county?: string | null
           created_at?: string | null
           description?: string | null
+          display_name?: string | null
           duplicate_of?: string | null
           google_types?: Json | null
           has_pseo_page?: boolean
           hours?: Json | null
           id?: string
+          is_hidden?: boolean
           is_pseo_eligible?: boolean
           last_updated?: string | null
           latitude?: number
@@ -771,6 +819,7 @@ export type Database = {
             }
             Returns: string
           }
+      apply_attraction_overrides: { Args: never; Returns: number }
       disablelongtransactions: { Args: never; Returns: string }
       dropgeometrycolumn:
         | {

@@ -23,6 +23,10 @@ export interface ListingBrewery {
   types: string[];
   photo: string | null;
   description: string | null;
+  /** Miles from the page's origin, when the page knows them (attraction pages: PostGIS distances) */
+  distance?: number;
+  /** Shown instead of the amenity chips (attraction pages) */
+  badges?: string[];
 }
 
 const DESCRIPTION_LENGTH = 180;
@@ -164,7 +168,13 @@ export function applyFilters(
   {
     now = new Date(),
     origin = null,
-  }: { now?: Date; origin?: LatLng | null } = {}
+    storedDistances = false,
+  }: {
+    now?: Date;
+    origin?: LatLng | null;
+    /** Use each brewery's own `distance` (from the page origin) when it has one */
+    storedDistances?: boolean;
+  } = {}
 ): ListingResult[] {
   const amenityDefs = filters.amenities
     .map((slug) => getAmenity(slug))
@@ -182,7 +192,9 @@ export function applyFilters(
     const open = isOpenAt(brewery.hours, now).open;
     if (filters.open && !open) return;
     const distance =
-      origin && brewery.latitude !== null && brewery.longitude !== null
+      storedDistances && brewery.distance !== undefined
+        ? brewery.distance
+        : origin && brewery.latitude !== null && brewery.longitude !== null
         ? distanceMiles(origin, {
             latitude: brewery.latitude,
             longitude: brewery.longitude,

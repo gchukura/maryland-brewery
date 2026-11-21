@@ -16,6 +16,8 @@ export interface BreweryListRowData {
   hours: WeeklyHours;
   amenities: string[];
   photo?: string | null;
+  /** Shown instead of the amenity chips (attraction pages) */
+  badges?: string[];
 }
 
 interface BreweryListRowProps {
@@ -29,6 +31,8 @@ interface BreweryListRowProps {
   onHighlight?: (slug: string | null) => void;
   /** Amenity labels to show first (the active filters) */
   preferAmenities?: string[];
+  /** Today's hours, already formatted ("Today 12:00 PM – 10:00 PM") */
+  today?: string | null;
   className?: string;
 }
 
@@ -40,8 +44,10 @@ export default function BreweryListRow({
   active,
   onHighlight,
   preferAmenities,
+  today,
   className,
 }: BreweryListRowProps) {
+  const chips = brewery.badges ?? amenityLabels(brewery.amenities, 4, preferAmenities);
   const meta = [brewery.street, brewery.city, distance]
     .filter(Boolean)
     .join(' · ');
@@ -76,6 +82,7 @@ export default function BreweryListRow({
           <StatusBadge hours={brewery.hours} className="shrink-0" />
         </div>
         {meta && <div className="text-sm text-muted">{meta}</div>}
+        {today && <div className="text-sm text-ink">{today}</div>}
         {brewery.description && (
           <div className="hidden sm:block">
             <p className="m-0 line-clamp-2 text-sm leading-normal">
@@ -83,13 +90,11 @@ export default function BreweryListRow({
             </p>
           </div>
         )}
-        {brewery.amenities.length > 0 && (
+        {chips.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-2">
-            {amenityLabels(brewery.amenities, 4, preferAmenities).map(
-              (label) => (
-                <AmenityChip key={label} value={label} />
-              )
-            )}
+            {chips.map((label) => (
+              <AmenityChip key={label} value={label} raw={!!brewery.badges} />
+            ))}
           </div>
         )}
       </div>
