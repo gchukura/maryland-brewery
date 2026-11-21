@@ -1,12 +1,16 @@
 name: IndexNow
 
-# After a successful production deploy, submits sitemap URLs that are new since the last run to
-# IndexNow (Bing, Yandex). The URL list from each run is kept as an artifact; the next run diffs
-# against it. With no earlier artifact (first run, or older than the 90-day retention) it submits
-# every URL. Changed pages are left to the normal sitemap crawl: lastmod is the build time.
-# Needs no secrets: it reads only the public sitemap and key file.
+# After each production deploy, tells IndexNow (Bing, Yandex, ...) about sitemap URLs that are new,
+# whose <lastmod> changed, or that left the sitemap since the last run, and nothing else: repeatedly
+# submitting unchanged URLs is what Bing flagged before. Each run keeps the sitemap's URL -> lastmod
+# map as an artifact for the next run to diff against. With no earlier artifact (the first run, or
+# none in 90 days) it only saves a baseline and submits nothing.
+# Trigger: Vercel's "Vercel" commit status turning success on main (Vercel no longer creates GitHub
+# deployments, so deployment_status never fires). Also runnable by hand. Needs no secrets.
 
-on: deployment_status
+on:
+  status:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -19,7 +23,10 @@ concurrency:
 jobs:
   indexnow:
     name: Submit new URLs to IndexNow
-    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.context == 'Vercel' && github.event.state == 'success' &&
+       contains(github.event.branches.*.name, 'main'))
     runs-on: ubuntu-latest
 
     steps:
@@ -45,7 +52,11 @@ jobs:
             gh run download "$run_id" --name indexnow-urls --dir previous || echo "No artifact in run $run_id"
           fi
 
-      - name: Submit new URLs
+      - name: Let the new deploy take over the production domain
+        if: github.event_name == 'status'
+        run: sleep 60
+
+      - name: Submit new, changed and removed URLs
         run: npm run indexnow -- --previous previous/urls.json --save urls.json
 
       - name: Keep the URL list for the next run

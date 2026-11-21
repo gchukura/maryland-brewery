@@ -1,21 +1,25 @@
 /**
- * IndexNow URL Submission Script
- * 
- * Submits all URLs from your sitemap to IndexNow API for instant indexing
- * by Bing, Yandex, and other participating search engines.
- * 
- * Usage: npx tsx scripts/submit-indexnow.ts
- *        npx tsx scripts/submit-indexnow.ts --previous prev-urls.json --save urls.json
+ * IndexNow URL submission (Bing, Yandex, Seznam, Naver, Yep; not Google).
  *
- * --previous: submit only the sitemap URLs missing from this JSON list (all of them if the
- *             file does not exist). --save: write the current sitemap URLs there after a
- *             successful submission. The production-deploy workflow (.github/workflows/indexnow.yml)
- *             uses both so each deploy submits only new pages.
- * 
- * Note: Google does not participate in IndexNow, but Bing and Yandex do.
+ * IndexNow is for URLs that were added, changed or removed. Submitting unchanged pages again and
+ * again is what got the earlier automatic run flagged in Bing Webmaster Tools, so a full submission
+ * now needs an explicit --all.
+ *
+ *   npm run indexnow -- --previous last.json --save last.json   # only new, changed and removed URLs
+ *   npm run indexnow -- --previous last.json --save last.json --dry-run   # list them, send nothing
+ *   npm run indexnow -- --all                                   # every sitemap URL (rarely right)
+ *
+ * --previous: the URL -> lastmod map saved by the last run. URLs not in it are new; URLs whose
+ *             <lastmod> changed are changed; URLs in it but no longer in the sitemap were removed
+ *             (hidden or redirected), and are submitted so engines recrawl and drop them.
+ *             Without the file (first run, or the artifact expired) this saves a baseline and
+ *             submits nothing.
+ * --save:     write the current URL -> lastmod map there after a successful run.
+ * The production workflow (.github/workflows/indexnow.yml) runs it with both after each deploy.
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { changedUrls, parseUrlState, type UrlState } from './lib/indexnow';
 import { parseStringPromise } from 'xml2js';
 
 const INDEXNOW_KEY = '457bccd4eef437d8877d15d3e947fa02';
@@ -46,6 +50,8 @@ interface SitemapUrl {
   priority?: string[];
 }
 
+
+
 interface SitemapData {
   urlset: {
     url: SitemapUrl[];
@@ -60,7 +66,7 @@ function flag(name: string): string | undefined {
 /**
  * Fetch and parse the sitemap
  */
-async function fetchSitemap(): Promise<string[]> {
+async function fetchSitemap(): Promise<UrlState> {
   console.log(`${colors.blue}📥 Fetching sitemap from ${SITEMAP_URL}...${colors.reset}`);
   
   const response = await fetch(SITEMAP_URL);
@@ -71,10 +77,11 @@ async function fetchSitemap(): Promise<string[]> {
   const xml = await response.text();
   const parsed: SitemapData = await parseStringPromise(xml);
   
-  const urls = parsed.urlset.url.map((item) => item.loc[0]);
-  console.log(`${colors.green}✅ Found ${urls.length} URLs in sitemap${colors.reset}\n`);
-  
-  return urls;
+  const state: UrlState = {};
+  for (const item of parsed.urlset.url) state[item.loc[0]] = item.lastmod?.[0] ?? '';
+  console.log(`${colors.green}✅ Found ${Object.keys(state).length} URLs in sitemap${colors.reset}\n`);
+
+  return state;
 }
 
 /**
@@ -167,29 +174,42 @@ async function main(): Promise<void> {
     console.log(`${colors.green}✅ Key file verified${colors.reset}\n`);
     
     // Fetch sitemap URLs
-    const urls = await fetchSitemap();
-
-    // With --previous, submit only URLs that were not in the last submitted sitemap
+    const current = await fetchSitemap();
     const previousPath = flag('--previous');
     const savePath = flag('--save');
-    let toSubmit = urls;
-    if (previousPath && existsSync(previousPath)) {
-      const previous = new Set<string>(JSON.parse(readFileSync(previousPath, 'utf8')));
-      toSubmit = urls.filter((url) => !previous.has(url));
-      console.log(`${colors.cyan}${toSubmit.length} new URLs since ${previousPath}${colors.reset}\n`);
-    } else if (previousPath) {
-      console.log(`${colors.yellow}No ${previousPath}; submitting every URL${colors.reset}\n`);
+    const dryRun = process.argv.includes('--dry-run');
+
+    let toSubmit: string[];
+    if (process.argv.includes('--all')) {
+      toSubmit = Object.keys(current);
+      console.log(`${colors.yellow}--all: submitting every sitemap URL${colors.reset}\n`);
+    } else if (previousPath && existsSync(previousPath)) {
+      const { added, changed, removed } = changedUrls(parseUrlState(readFileSync(previousPath, 'utf8')), current);
+      toSubmit = [...added, ...changed, ...removed];
+      console.log(
+        `${colors.cyan}Since ${previousPath}: ${added.length} new, ${changed.length} changed, ${removed.length} removed${colors.reset}\n`
+      );
+      for (const url of toSubmit.slice(0, 20)) console.log(`   ${url}`);
+      if (toSubmit.length > 20) console.log(`   … and ${toSubmit.length - 20} more`);
+    } else {
+      toSubmit = [];
+      console.log(
+        `${colors.yellow}No previous list${previousPath ? ` at ${previousPath}` : ''}: saving a baseline and submitting nothing (use --all to send everything)${colors.reset}\n`
+      );
     }
 
-    // Submit to IndexNow
+    if (dryRun) {
+      console.log(`\n${colors.yellow}--dry-run: would submit ${toSubmit.length} URLs; nothing sent or saved${colors.reset}`);
+      return;
+    }
     if (toSubmit.length > 0 && !(await submitToIndexNow(toSubmit))) {
       process.exit(1);
     }
     if (savePath) {
-      writeFileSync(savePath, JSON.stringify(urls));
-      console.log(`${colors.green}✅ Saved ${urls.length} URLs to ${savePath}${colors.reset}`);
+      writeFileSync(savePath, JSON.stringify(current));
+      console.log(`${colors.green}✅ Saved ${Object.keys(current).length} URLs to ${savePath}${colors.reset}`);
     }
-    
+
     console.log(`\n${colors.green}═══════════════════════════════════════════${colors.reset}`);
     console.log(`${colors.green}   ✅ IndexNow submission complete!${colors.reset}`);
     console.log(`${colors.green}═══════════════════════════════════════════${colors.reset}\n`);
