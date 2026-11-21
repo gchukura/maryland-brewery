@@ -10,7 +10,8 @@ export const revalidate = 3600; // ISR hourly; the list itself updates in the br
 
 export const metadata: Metadata = buildMetadata({
   title: 'Breweries Open Now in Maryland',
-  description: "Maryland breweries open right now, with today's closing times.",
+  description:
+    "Maryland breweries open right now, by Maryland time, with today's closing times, a map and ratings. Filter by amenity or type to pick where to go next.",
   path: '/open-now',
 });
 

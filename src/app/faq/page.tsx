@@ -7,7 +7,7 @@ import { buttonVariants } from '@/components/ui/button';
 export const metadata: Metadata = createPageMetadata({
   title: 'Frequently Asked Questions',
   description:
-    'Common questions about Maryland breweries, craft beer, and using the Maryland Brewery Directory.',
+    'Answers about the Maryland Brewery directory: finding breweries near you, how accurate hours are, adding or updating a brewery, reviews and photo use.',
   path: '/faq',
   keywords: [
     'Maryland brewery FAQ',

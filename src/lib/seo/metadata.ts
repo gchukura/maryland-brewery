@@ -6,6 +6,8 @@ const SITE_NAME = 'Maryland Brewery';
 export const TITLE_SUFFIX = ' | Maryland Brewery';
 const MAX_TITLE_LENGTH = 60; // including TITLE_SUFFIX
 export const MAX_DESCRIPTION_LENGTH = 155;
+/** Bing Webmaster Tools flags shorter descriptions as too short. */
+export const MIN_DESCRIPTION_LENGTH = 110;
 /** Longest page title that still fits once the suffix is added. */
 export const MAX_PAGE_TITLE_LENGTH = MAX_TITLE_LENGTH - TITLE_SUFFIX.length;
 
