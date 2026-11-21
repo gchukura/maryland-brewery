@@ -76,7 +76,7 @@ export function countyMeta(county: string, count: number): PageMeta {
   return {
     title: pickTitle([`${Breweries(count)} in ${label}, MD`, `Breweries in ${label}, MD`, `${label} Breweries`]),
     description: pickDescription([
-      `All ${breweries(count)} in ${label}, Maryland, with hours, a map, amenities and ratings, grouped by town.`,
+      `All ${breweries(count)} in ${label}, Maryland, with hours, a map, amenities and ratings, grouped by town. See which are open today.`,
       `All ${breweries(count)} in ${label}, Maryland, with hours, a map and ratings.`,
     ]),
   };
@@ -86,8 +86,9 @@ export function regionMeta(region: string, count: number, counties: string[]): P
   return {
     title: pickTitle([`${Breweries(count)} in ${region}, MD`, `Breweries in ${region}, MD`, `${region} Breweries`]),
     description: pickDescription([
-      `${breweries(count)} across ${region}, Maryland (${counties.join(', ')}), with hours, a map and ratings.`,
-      `${breweries(count)} across ${region}, Maryland, with hours, a map and ratings.`,
+      `All ${breweries(count)} across ${region}, Maryland (${counties.join(', ')}), with hours, a map, ratings and amenities.`,
+      `All ${breweries(count)} across ${region}, Maryland, with hours, a map, ratings and amenities. Filter by amenity and see which are open today.`,
+      `All ${breweries(count)} across ${region}, Maryland, with hours, a map, ratings and amenities.`,
     ]),
   };
 }
@@ -96,8 +97,8 @@ export function amenityMeta(label: string, count: number): PageMeta {
   return {
     title: pickTitle([`${label} Breweries in Maryland`, `${label} Breweries`]),
     description: pickDescription([
-      `${count} Maryland breweries with ${label.toLowerCase()}, with hours, locations, a map and ratings. Filter by city to plan your visit.`,
-      `${count} Maryland breweries with ${label.toLowerCase()}, with hours, a map and ratings.`,
+      `${breweries(count)} in Maryland with ${label.toLowerCase()}, with hours, locations, a map and ratings. Filter by type and see which are open today.`,
+      `${breweries(count)} in Maryland with ${label.toLowerCase()}, with hours, a map and ratings. Filter by type and see which are open today.`,
     ]),
   };
 }
@@ -106,8 +107,9 @@ export function cityAmenityMeta(label: string, city: string, count: number): Pag
   return {
     title: pickTitle([`${label} Breweries in ${city}, MD`, `${label} Breweries in ${city}`, `${label} in ${city}`]),
     description: pickDescription([
+      `${breweries(count)} with ${label.toLowerCase()} in ${city}, Maryland, with hours, a map and ratings. Filter by other amenities and see which are open today.`,
+      `${breweries(count)} with ${label.toLowerCase()} in ${city}, Maryland, with hours, a map and ratings. See which are open today.`,
       `${breweries(count)} with ${label.toLowerCase()} in ${city}, Maryland, with hours, a map and ratings.`,
-      `${label} breweries in ${city}, Maryland.`,
     ]),
   };
 }
@@ -117,8 +119,9 @@ export function typeMeta(type: string, count: number): PageMeta {
   return {
     title: pickTitle([`${count} ${name} in Maryland`, `${name} in Maryland`, name]),
     description: pickDescription([
-      `All ${count} ${name.toLowerCase()} in Maryland, with hours, locations, a map and ratings.`,
-      `${name} in Maryland, with hours, a map and ratings.`,
+      `All ${count} ${name.toLowerCase()} in Maryland, with hours, locations, a map and ratings. Filter by amenity and see which ones are open today.`,
+      `All ${count} ${name.toLowerCase()} in Maryland, with hours, a map and ratings. Filter by amenity and see what's open today.`,
+      `${name} in Maryland, with hours, a map and ratings. Filter by amenity and see what's open today.`,
     ]),
   };
 }
@@ -148,12 +151,14 @@ export function neighborhoodMeta(neighborhood: string, city: string, count: numb
     description: pickDescription(
       place === neighborhood
         ? [
+            `${breweries(count)} near ${neighborhood}, Maryland, sorted by distance, with hours and ratings, plus parks and things to do nearby.`,
             `${breweries(count)} near ${neighborhood}, Maryland, sorted by distance, plus parks and things to do nearby.`,
-            `${breweries(count)} near ${neighborhood}, sorted by distance.`,
+            `${breweries(count)} near ${shortName(neighborhood)}, Maryland, sorted by distance, plus parks and things to do nearby.`,
           ]
         : [
+            `${breweries(count)} near ${neighborhood} in ${city}, Maryland, sorted by distance, with hours and ratings, plus parks and things to do nearby.`,
             `${breweries(count)} near ${neighborhood} in ${city}, Maryland, sorted by distance, plus parks and things to do nearby.`,
-            `${breweries(count)} near ${neighborhood}, ${city}, sorted by distance.`,
+            `${breweries(count)} near ${shortName(neighborhood)} in ${city}, Maryland, sorted by distance, plus parks and things to do nearby.`,
           ]
     ),
   };
@@ -171,9 +176,12 @@ export function attractionMeta(attraction: string, city: string | undefined, cou
       clipTitle(attraction),
     ]),
     description: pickDescription([
+      `${breweries(count)} within 10 miles of ${attraction}${where}, sorted by distance, with hours, a map and ratings. See which are open today.`,
       `${breweries(count)} within 10 miles of ${attraction}${where}, sorted by distance, with hours and ratings.`,
-      `${breweries(count)} within 10 miles of ${attraction}, sorted by distance.`,
+      `${breweries(count)} within 10 miles of ${attraction}, sorted by distance, with hours and ratings.`,
+      `${breweries(count)} within 10 miles of ${shortName(attraction)}${where}, sorted by distance, with hours, a map and ratings.`,
       `${breweries(count)} within 10 miles of ${shortName(attraction)}${where}, sorted by distance.`,
+      `${breweries(count)} within 10 miles of ${shortName(attraction)}, sorted by distance.`,
     ]),
   };
 }
@@ -183,7 +191,8 @@ export function openOnDayMeta(day: string, count: number): PageMeta {
   return {
     title: pickTitle([`Breweries Open ${Day} in Maryland`, `Breweries Open ${Day}`]),
     description: pickDescription([
-      `${breweries(count)} in Maryland open on ${Day}s, on a map, with each one's hours.`,
+      `${breweries(count)} in Maryland open on ${Day}s, with each one's ${Day} hours, a map and ratings. Filter by amenity or type to plan your ${Day} brewery visit.`,
+      `${breweries(count)} in Maryland open on ${Day}s, with each one's ${Day} hours, a map and ratings. Filter by amenity or type to plan a visit.`,
     ]),
   };
 }

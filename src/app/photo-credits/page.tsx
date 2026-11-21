@@ -6,7 +6,7 @@ import { buttonVariants } from '@/components/ui/button';
 export const metadata: Metadata = createPageMetadata({
   title: 'Photo Credits',
   description:
-    'Photo credits and attribution information for images used on MarylandBrewery.com.',
+    'Where the photos on MarylandBrewery.com come from, how they are credited and licensed, and how to ask to use an image or report a copyright concern.',
   path: '/photo-credits',
   keywords: ['photo credits', 'image attribution', 'photography'],
 });

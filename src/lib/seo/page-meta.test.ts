@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import names from './__fixtures__/real-names.json';
-import { MAX_DESCRIPTION_LENGTH, MAX_PAGE_TITLE_LENGTH, TITLE_SUFFIX, buildMetadata } from './metadata';
+import { MAX_DESCRIPTION_LENGTH, MAX_PAGE_TITLE_LENGTH, MIN_DESCRIPTION_LENGTH, TITLE_SUFFIX, buildMetadata } from './metadata';
 import {
   amenityMeta,
   attractionMeta,
@@ -27,6 +27,9 @@ function overflow(label: string, meta: PageMeta): string[] {
   }
   if (meta.description.length > MAX_DESCRIPTION_LENGTH) {
     problems.push(`${label}: description ${meta.description.length} chars: "${meta.description}"`);
+  }
+  if (meta.description.length < MIN_DESCRIPTION_LENGTH) {
+    problems.push(`${label}: description only ${meta.description.length} chars: "${meta.description}"`);
   }
   return problems;
 }
