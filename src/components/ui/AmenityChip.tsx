@@ -4,9 +4,12 @@ import { amenityForValue, amenityPath } from '@/lib/amenities';
 
 const classes = 'inline-flex items-center rounded-chip bg-cream px-2.5 py-1 font-sans text-xs font-medium text-ink';
 
-/** A small cream pill for one amenity. Links to the amenity page when `link` is set and the value is known. */
-export default function AmenityChip({ value, link = false, className }: { value: string; link?: boolean; className?: string }) {
-  const amenity = amenityForValue(value);
+/**
+ * A small cream pill for one amenity. Links to the amenity page when `link` is set and the value is
+ * known. `raw` shows the value as given instead of the amenity's label ("Food" stays "Food").
+ */
+export default function AmenityChip({ value, link = false, raw = false, className }: { value: string; link?: boolean; raw?: boolean; className?: string }) {
+  const amenity = raw ? undefined : amenityForValue(value);
   const label = amenity?.label ?? value;
   if (link && amenity) {
     return (

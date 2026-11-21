@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDayHours, isOpenAt, isOpenOnDay, nextOpening, openingHoursSpecification, openStatusLabel, parseDayHours, type WeeklyHours } from './hours';
+import { formatDayHours, isOpenAt, todayHours, isOpenOnDay, nextOpening, openingHoursSpecification, openStatusLabel, parseDayHours, type WeeklyHours } from './hours';
 
 const h = (hh: number, mm = 0) => hh * 60 + mm;
 
@@ -115,5 +115,18 @@ describe('openStatusLabel (the status badge)', () => {
   it('is null without usable hours', () => {
     expect(openStatusLabel({}, new Date('2026-10-27T16:00:00Z'))).toBeNull();
     expect(openStatusLabel(undefined)).toBeNull();
+  });
+});
+
+describe('todayHours', () => {
+  const hours: WeeklyHours = { tuesday: '12:00 – 10:00 PM', wednesday: 'Closed' };
+  // 2026-11-17 is a Tuesday; 03:00 UTC Wednesday is still Tuesday evening in Maryland
+  it("uses Maryland's day, not the server's", () => {
+    expect(todayHours(hours, new Date('2026-11-18T03:00:00Z'))).toBe('Today 12:00 PM – 10:00 PM');
+    expect(todayHours(hours, new Date('2026-11-18T15:00:00Z'))).toBe('Closed today');
+  });
+  it('is null when the day has no readable hours', () => {
+    expect(todayHours(hours, new Date('2026-11-19T15:00:00Z'))).toBeNull();
+    expect(todayHours(undefined)).toBeNull();
   });
 });

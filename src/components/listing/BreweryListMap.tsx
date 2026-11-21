@@ -34,12 +34,12 @@ import {
   type SortKey,
 } from '@/lib/listing';
 import { getAmenity } from '@/lib/amenities';
-import { isOpenAt } from '@/lib/hours';
+import { isOpenAt, todayHours } from '@/lib/hours';
 import { cn } from '@/lib/utils';
 import { FilterChip } from '@/components/ui/Chip';
 import { Button } from '@/components/ui/button';
 import BreweryListRow from '@/components/ui/BreweryListRow';
-import BreweryMapLazy from '@/components/maps/BreweryMapLazy';
+import BreweryMapLazy, { type MapLandmark } from '@/components/maps/BreweryMapLazy';
 
 const PAGE_SIZE = 12;
 
@@ -54,6 +54,10 @@ export interface BreweryListMapProps {
   origin?: LatLng | null;
   /** When the server rendered the page; the first client render uses it so the HTML matches */
   renderedAt: number;
+  /** Show each brewery's hours for today (attraction pages) */
+  showTodayHours?: boolean;
+  /** A pin for the place the page is about (attraction pages) */
+  landmark?: MapLandmark | null;
 }
 
 export default function BreweryListMap(props: BreweryListMapProps) {
@@ -115,6 +119,8 @@ function ListingView({
   locked,
   origin: pageOrigin = null,
   renderedAt,
+  showTodayHours = false,
+  landmark = null,
   params,
 }: BreweryListMapProps & { params: URLSearchParams | null }) {
   const router = useRouter();
@@ -205,8 +211,14 @@ function ListingView({
     [filters, origin, defaults.sort]
   );
   const results = useMemo(
-    () => applyFilters(breweries, effective, { now, origin }),
-    [breweries, effective, now, origin]
+    () =>
+      applyFilters(breweries, effective, {
+        now,
+        origin,
+        // The page's own distances, until the visitor sorts by their location
+        storedDistances: geo.status !== 'ok',
+      }),
+    [breweries, effective, now, origin, geo.status]
   );
 
   const amenities = useMemo(
@@ -418,6 +430,7 @@ function ListingView({
               active={highlighted === r.brewery.slug}
               onHighlight={setHighlighted}
               preferAmenities={preferAmenities}
+              today={showTodayHours ? todayHours(r.brewery.hours, now) : undefined}
             />
           ))}
           {results.length === 0 && (
@@ -457,6 +470,7 @@ function ListingView({
               visible={visibleSlugs}
               highlighted={highlighted}
               onHighlight={setHighlighted}
+              landmark={landmark}
             />
           )}
         </div>

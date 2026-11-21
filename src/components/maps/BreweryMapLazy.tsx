@@ -11,4 +11,4 @@ const BreweryMapLazy = dynamic(() => import('./BreweryMap'), {
 });
 
 export default BreweryMapLazy;
-export type { MapPoint } from './BreweryMap';
+export type { MapLandmark, MapPoint } from './BreweryMap';

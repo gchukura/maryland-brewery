@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import {
   breweriesInRegion,
+  getPlacesByType,
   getProcessedBreweryData,
   getRegions,
 } from '@/lib/db';
@@ -65,9 +66,10 @@ const LEGAL = [
  * Server component; the ad slot above it is the only client part.
  */
 export default async function SiteFooter() {
-  const [{ breweries, byCity, types }, regions] = await Promise.all([
+  const [{ breweries, byCity, types }, regions, placeTypes] = await Promise.all([
     getProcessedBreweryData(),
     getRegions(),
+    getPlacesByType(),
   ]);
 
   const columns: Column[] = [
@@ -88,6 +90,13 @@ export default async function SiteFooter() {
         .filter((t) => breweries.some((b) => b.type.includes(t)))
         .map((t) => ({ label: typePlural(t), href: `/type/${slugify(t)}` }))
         .sort((a, b) => a.label.localeCompare(b.label)),
+    },
+    {
+      title: 'Things to do',
+      links: [
+        { label: 'All things to do', href: '/near' },
+        ...placeTypes.map(({ type }) => ({ label: type.title, href: `/near/${type.slug}` })),
+      ],
     },
     {
       title: 'Best breweries',
@@ -119,7 +128,7 @@ export default async function SiteFooter() {
               cideries and meaderies.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:grid-cols-7">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4 lg:grid-cols-8">
             {columns.map((column) => (
               <nav
                 key={column.title}

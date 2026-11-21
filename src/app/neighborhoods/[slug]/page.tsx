@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import {
   getAllNeighborhoods,
   getAttractionsNearBrewery,
+  getIndexableAttractions,
   getNeighborhoodBySlug,
   getProcessedBreweryData,
 } from '@/lib/db';
@@ -14,7 +15,6 @@ import {
   NEIGHBORHOOD_INDEX_RADIUS_MILES,
   breweriesNearNeighborhood,
   isIndexableNeighborhood,
-  isListedAttraction,
   neighborhoodPath,
   neighborhoodPlace,
 } from '@/lib/neighborhoods';
@@ -24,6 +24,7 @@ import { collectionPage } from '@/lib/seo/jsonld';
 import JsonLd from '@/components/seo/JsonLd';
 import ListingPage from '@/components/listing/ListingPage';
 import SectionHeading from '@/components/ui/SectionHeading';
+import { placeType } from '@/lib/attractions';
 
 const ATTRACTION_LIMIT = 6;
 // Fetch extra so filtering out shops and offices still leaves enough to show
@@ -106,15 +107,23 @@ export default async function NeighborhoodPage({
   const withinIndexRadius = breweries.filter(
     (b) => b.distance <= NEIGHBORHOOD_INDEX_RADIUS_MILES
   ).length;
-  const nearbyAttractions = await getAttractionsNearBrewery(
-    neighborhood.latitude,
-    neighborhood.longitude,
-    milesToKm(NEIGHBORHOOD_INDEX_RADIUS_MILES),
-    ATTRACTION_CANDIDATES
-  );
+  const [nearbyAttractions, listedAttractions] = await Promise.all([
+    getAttractionsNearBrewery(
+      neighborhood.latitude,
+      neighborhood.longitude,
+      milesToKm(NEIGHBORHOOD_INDEX_RADIUS_MILES),
+      ATTRACTION_CANDIDATES
+    ),
+    getIndexableAttractions(),
+  ]);
+  // Only places listed on /near (indexed, not hidden), under their display names
+  const listed = new Map(listedAttractions.map((a) => [a.slug, a]));
   const attractions = sortByDistance(
     neighborhood,
-    nearbyAttractions.filter(isListedAttraction)
+    nearbyAttractions.flatMap((a) => {
+      const summary = listed.get(a.slug);
+      return summary ? [{ ...a, name: summary.name, kind: placeType(summary.category).noun }] : [];
+    })
   ).slice(0, ATTRACTION_LIMIT);
 
   const pagePath = neighborhoodPath(neighborhood.slug);
@@ -180,7 +189,7 @@ export default async function NeighborhoodPage({
                   >
                     <p className="m-0 font-semibold">{attraction.name}</p>
                     <p className="m-0 text-sm capitalize text-muted">
-                      {attraction.type.replace(/_/g, ' ')} ·{' '}
+                      {attraction.kind} ·{' '}
                       {attraction.distance.toFixed(1)} mi
                     </p>
                     <p className="m-0 mt-2 text-sm font-semibold text-brand-red">

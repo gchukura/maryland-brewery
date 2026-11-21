@@ -7,8 +7,17 @@ import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { fetchBreweryBySlug, fetchRegions, getAllNeighborhoods as fetchAllNeighborhoods, getBreweryDataFromSupabase, type Region } from './queries';
 import { isIndexableNeighborhood } from '@/lib/neighborhoods';
-import { fetchAttractionSummaries, type AttractionSummary } from './attractions';
-import { isIndexableAttraction } from '@/lib/attractions';
+import { fetchAttractionPage, fetchAttractionSummaries, type AttractionPageData, type AttractionSummary } from './attractions';
+import {
+  ATTRACTION_PAGE_MIN_REVIEWS,
+  OTHER_PLACE_TYPE,
+  PLACE_TYPES,
+  RESERVED_PLACE_SLUGS,
+  isAttractionPage,
+  isIndexableAttraction,
+  placeType,
+  type PlaceType,
+} from '@/lib/attractions';
 import { Brewery, ProcessedBreweryData, SiteStatistics, MARYLAND_COUNTIES } from '@/types/brewery';
 
 import { sortByDistance } from '@/lib/geo';
@@ -242,23 +251,52 @@ export async function getAllTypes(): Promise<string[]> {
 /** All attractions (slug, name, type, location), cached like the brewery list. */
 const getAttractionSummaries = unstable_cache(
   async (): Promise<AttractionSummary[]> => fetchAttractionSummaries(),
-  ['attraction-summaries-v2'], // v2: added city (the data cache outlives deploys)
+  ['attraction-summaries-v5'], // v5: nearby_brewery_count_10mi (the data cache outlives deploys)
   CACHE
 );
 
 /**
- * Attractions whose /near page is indexed: real sights with a brewery within 3 miles. Cached
- * across requests: finding each of ~4,000 attractions' nearest brewery is too slow to repeat on
- * every brewery page.
+ * Attractions whose /near page is indexed (never hidden ones): attraction pages (src/lib/attractions.ts), plus real
+ * sights with a brewery within 3 miles. Cached across requests: finding each of ~4,000
+ * attractions' nearest brewery is too slow to repeat on every brewery page.
  */
 export const getIndexableAttractions = unstable_cache(
   async (): Promise<AttractionSummary[]> => {
     const [attractions, { breweries }] = await Promise.all([getAttractionSummaries(), getProcessedBreweryData()]);
-    return attractions.filter((a) => isIndexableAttraction(a, sortByDistance(a, breweries)[0]?.distance));
+    return attractions.filter(
+      (a) =>
+        !a.isHidden &&
+        !RESERVED_PLACE_SLUGS.has(a.slug) &&
+        (isAttractionPage(a) || isIndexableAttraction(a, sortByDistance(a, breweries)[0]?.distance))
+    );
   },
-  ['indexable-attractions-v1'],
+  // The threshold is in the key so lowering it takes effect on the next deploy
+  ['indexable-attractions-v4', String(ATTRACTION_PAGE_MIN_REVIEWS)],
   CACHE
 );
+
+/** The places on /near grouped by type, biggest type first; types with no places are left out. */
+export async function getPlacesByType(): Promise<{ type: PlaceType; places: AttractionSummary[] }[]> {
+  const places = await getIndexableAttractions();
+  return [...PLACE_TYPES, OTHER_PLACE_TYPE]
+    .map((type) => ({ type, places: places.filter((p) => placeType(p.category) === type) }))
+    .filter((g) => g.places.length > 0)
+    .sort((a, b) => b.places.length - a.places.length);
+}
+
+/** Attractions with the full /near template ("More to do nearby" links only to these). */
+export async function getAttractionPages(): Promise<AttractionSummary[]> {
+  return (await getIndexableAttractions()).filter(isAttractionPage);
+}
+
+/** One attraction page with its ranked breweries, or null when the slug has no attraction page. */
+export function getAttractionPage(slug: string): Promise<AttractionPageData | null> {
+  return unstable_cache(
+    async () => fetchAttractionPage(slug, ATTRACTION_PAGE_MIN_REVIEWS),
+    ['attraction-page-v2', slug, String(ATTRACTION_PAGE_MIN_REVIEWS)],
+    CACHE
+  )();
+}
 
 /** Neighborhoods whose page is indexed: a brewery within 3 miles (src/lib/neighborhoods.ts). */
 export const getIndexableNeighborhoods = unstable_cache(

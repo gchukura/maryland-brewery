@@ -1,11 +1,12 @@
 import type { MetadataRoute } from 'next';
-import { breweriesInRegion, getAllNeighborhoods, getIndexableAttractions, getProcessedBreweryData, getRegions } from '@/lib/db';
+import { breweriesInRegion, getAllNeighborhoods, getIndexableAttractions, getPlacesByType, getProcessedBreweryData, getRegions } from '@/lib/db';
 import { slugify } from '@/lib/slug';
 import { DAYS, isOpenOnDay } from '@/lib/hours';
 import { hasBestBreweriesPage } from '@/lib/best-breweries';
 import { AMENITIES, hasAmenity, isIndexableCityAmenity } from '@/lib/amenities';
 import { sortByDistance } from '@/lib/geo';
 import { breweriesNearNeighborhood, isIndexableNeighborhood, neighborhoodPath } from '@/lib/neighborhoods';
+import { isAttractionPage } from '@/lib/attractions';
 import { SITE_URL } from '@/lib/seo/metadata';
 import type { Brewery } from '@/types/brewery';
 
@@ -34,11 +35,12 @@ function latest(breweries: Brewery[]): Date | undefined {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [processed, regions, neighborhoods, attractions] = await Promise.all([
+  const [processed, regions, neighborhoods, attractions, placeTypes] = await Promise.all([
     getProcessedBreweryData(),
     getRegions(),
     getAllNeighborhoods(),
     getIndexableAttractions(),
+    getPlacesByType(),
   ]);
   const { breweries } = processed;
   const siteUpdated = latest(breweries);
@@ -122,9 +124,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     add(neighborhoodPath(n.slug), 0.5, latest(breweriesNearNeighborhood(origin, breweries)));
   }
 
-  // Attractions: real sights with a brewery within 3 miles (the rest are noindex)
+  // Place types (/near/museums), updated with their newest place
+  for (const { type, places } of placeTypes) {
+    const times = places.map((p) => Date.parse(p.updatedAt ?? '')).filter((t) => !Number.isNaN(t));
+    add(`/near/${type.slug}`, 0.6, times.length > 0 ? new Date(Math.max(...times)) : undefined);
+  }
+
+  // Attractions: attraction pages (src/lib/attractions.ts), and real sights with a brewery within
+  // 3 miles (the rest are noindex)
   for (const a of attractions) {
-    add(`/near/${a.slug}`, 0.4, a.updatedAt ? new Date(a.updatedAt) : undefined);
+    add(`/near/${a.slug}`, isAttractionPage(a) ? 0.6 : 0.4, a.updatedAt ? new Date(a.updatedAt) : undefined);
   }
 
   return [...entries.values()];
