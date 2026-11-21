@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      attraction_breweries: {
+        Row: {
+          attraction_id: string
+          brewery_id: string
+          distance_miles: number
+          rank: number
+        }
+        Insert: {
+          attraction_id: string
+          brewery_id: string
+          distance_miles: number
+          rank: number
+        }
+        Update: {
+          attraction_id?: string
+          brewery_id?: string
+          distance_miles?: number
+          rank?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attraction_breweries_attraction_id_fkey"
+            columns: ["attraction_id"]
+            isOneToOne: false
+            referencedRelation: "maryland_attractions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attraction_breweries_brewery_id_fkey"
+            columns: ["brewery_id"]
+            isOneToOne: false
+            referencedRelation: "breweries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       beers: {
         Row: {
           abv: string | null
@@ -273,6 +309,7 @@ export type Database = {
           description: string | null
           duplicate_of: string | null
           google_types: Json | null
+          has_pseo_page: boolean
           hours: Json | null
           id: string
           is_pseo_eligible: boolean
@@ -280,6 +317,8 @@ export type Database = {
           latitude: number
           longitude: number
           name: string
+          nearby_brewery_count_10mi: number
+          nearby_brewery_count_5mi: number
           phone: string | null
           photos: Json | null
           place_id: string
@@ -302,6 +341,7 @@ export type Database = {
           description?: string | null
           duplicate_of?: string | null
           google_types?: Json | null
+          has_pseo_page?: boolean
           hours?: Json | null
           id?: string
           is_pseo_eligible?: boolean
@@ -309,6 +349,8 @@ export type Database = {
           latitude: number
           longitude: number
           name: string
+          nearby_brewery_count_10mi?: number
+          nearby_brewery_count_5mi?: number
           phone?: string | null
           photos?: Json | null
           place_id: string
@@ -331,6 +373,7 @@ export type Database = {
           description?: string | null
           duplicate_of?: string | null
           google_types?: Json | null
+          has_pseo_page?: boolean
           hours?: Json | null
           id?: string
           is_pseo_eligible?: boolean
@@ -338,6 +381,8 @@ export type Database = {
           latitude?: number
           longitude?: number
           name?: string
+          nearby_brewery_count_10mi?: number
+          nearby_brewery_count_5mi?: number
           phone?: string | null
           photos?: Json | null
           place_id?: string
@@ -934,6 +979,7 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
+      refresh_attraction_breweries: { Args: never; Returns: Json }
       st_3dclosestpoint: {
         Args: { geom1: unknown; geom2: unknown }
         Returns: unknown
