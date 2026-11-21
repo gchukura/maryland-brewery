@@ -12,6 +12,7 @@ const PAGES = [
   ['things to do index', '/near'],
   ['attraction', '/near/oriole-park-at-camden-yards'],
   ['place type', '/near/parks'],
+  ['all breweries', '/breweries'],
   ['FAQ', '/faq'],
   ['contact', '/contact'],
 ] as const;

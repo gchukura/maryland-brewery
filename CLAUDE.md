@@ -77,7 +77,9 @@ These describe the code as of 2026-10-27. Fix them in their own PRs, not inciden
   `google-adsense-account` meta tag. Ad units must be fixed-size (no `data-ad-format`): AdSense collapses the
   parents of unfilled responsive units with inline `!important` styles.
 - Accessibility: `e2e/a11y.spec.ts` (axe) must stay at zero serious/critical violations.
-- Internal links: the footer links every region, amenity, type and eligible best-of city; `/neighborhoods` and `/near`
+- Internal links: the footer links every region, amenity, type and eligible best-of city, `/breweries` (every brewery
+  A to Z) and every `/near` type page; the header links `/near`. So every page is at most 2 clicks from any other: keep it
+  that way (listings put only their first 12 breweries in the HTML, so don't rely on them). `/neighborhoods` and `/near`
   index every indexed neighborhood and attraction. `npm run seo:check` also crawls from `/` and fails on orphans,
   links to redirects and broken links. Launch QA results and post-deploy steps: `docs/launch.md`. `npx knip` must stay clean (`knip.json`).
 - `cn()` is plain clsx (no tailwind-merge): never pass a class that conflicts with a component's base class;

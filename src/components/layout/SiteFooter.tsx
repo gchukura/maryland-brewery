@@ -24,6 +24,7 @@ interface Column {
 const BROWSE: Column = {
   title: 'Browse',
   links: [
+    { label: 'All breweries', href: '/breweries' },
     { label: 'Brewery map', href: '/map' },
     { label: 'Open now', href: '/open-now' },
     { label: 'Cities', href: '/cities' },

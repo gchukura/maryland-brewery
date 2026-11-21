@@ -6,13 +6,10 @@ import { SITE_URL } from '@/lib/seo/metadata';
 import PageHeader from '@/components/ui/PageHeader';
 import SectionHeading from '@/components/ui/SectionHeading';
 import JsonLd from '@/components/seo/JsonLd';
-import AZList from './AZList';
+import AZList from '@/components/listing/AZList';
 
 /** Ranked cards shown before the A-to-Z list. */
 const MOST_VISITED = 12;
-/** Types bigger than this collapse each letter after COLLAPSE_AFTER rows. */
-const COLLAPSE_OVER = 150;
-const COLLAPSE_AFTER = 12;
 
 interface PlaceTypePageProps {
   type: PlaceType;
@@ -122,12 +119,7 @@ export default function PlaceTypePage({ type, places, types }: PlaceTypePageProp
 
       <section aria-labelledby="a-to-z" className="flex flex-col gap-4">
         <SectionHeading id="a-to-z" title={`All ${lower}, A to Z`} size="md" />
-        <AZList
-          groups={groups}
-          letters={AZ_LETTERS}
-          noun={lower}
-          collapseAfter={count > COLLAPSE_OVER ? COLLAPSE_AFTER : undefined}
-        />
+        <AZList groups={groups} letters={AZ_LETTERS} noun={lower} />
       </section>
     </div>
   );

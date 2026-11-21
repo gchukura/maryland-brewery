@@ -5,6 +5,7 @@ export const PRIMARY_NAV = [
   { label: 'Counties', href: '/counties' },
   { label: 'Open now', href: '/open-now' },
   { label: 'Amenities', href: '/amenities' },
+  { label: 'Things to do', href: '/near' },
 ] as const;
 
 /** A nav item is current on its own page and below it (/cities/frederick/breweries -> Cities). */
