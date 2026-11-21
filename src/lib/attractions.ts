@@ -26,7 +26,7 @@ export function isIndexableAttraction(
 // refresh_attraction_breweries() in supabase/migrations). Other /near pages keep the basic list.
 
 /** Launch threshold: attraction pages need at least this many Google reviews. Lower to add pages. */
-export const ATTRACTION_PAGE_MIN_REVIEWS = 1000;
+export const ATTRACTION_PAGE_MIN_REVIEWS = 500;
 
 export function isAttractionPage(a: { hasPseoPage?: boolean; ratingCount?: number | null }): boolean {
   return a.hasPseoPage === true && (a.ratingCount ?? 0) >= ATTRACTION_PAGE_MIN_REVIEWS;
