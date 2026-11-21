@@ -42,7 +42,10 @@ export interface Attraction {
 /**
  * Convert database attraction to application attraction type
  */
-function dbAttractionToAttraction(dbAttraction: Tables<'maryland_attractions'>): Attraction {
+/** The columns the app reads; get_nearby_attractions returns these and not the pSEO columns. */
+type AttractionRow = Omit<Tables<'maryland_attractions'>, 'category' | 'duplicate_of' | 'is_pseo_eligible'>;
+
+function dbAttractionToAttraction(dbAttraction: AttractionRow): Attraction {
   return {
     id: dbAttraction.id,
     placeId: dbAttraction.place_id,
@@ -117,7 +120,7 @@ export async function getAttractionsNearBrewery(
     const radiusMeters = radiusKm * 1000;
 
     // Use PostGIS if available, otherwise fetch all and filter client-side
-    let data: (Tables<'maryland_attractions'> & { distance_meters?: number })[] | null = null;
+    let data: (AttractionRow & { distance_meters?: number })[] | null = null;
     let error: any = null;
     
     try {

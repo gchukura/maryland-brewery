@@ -266,13 +266,16 @@ export type Database = {
       }
       maryland_attractions: {
         Row: {
+          category: string | null
           city: string
           county: string | null
           created_at: string | null
           description: string | null
+          duplicate_of: string | null
           google_types: Json | null
           hours: Json | null
           id: string
+          is_pseo_eligible: boolean
           last_updated: string | null
           latitude: number
           longitude: number
@@ -292,13 +295,16 @@ export type Database = {
           zip: string | null
         }
         Insert: {
+          category?: string | null
           city: string
           county?: string | null
           created_at?: string | null
           description?: string | null
+          duplicate_of?: string | null
           google_types?: Json | null
           hours?: Json | null
           id?: string
+          is_pseo_eligible?: boolean
           last_updated?: string | null
           latitude: number
           longitude: number
@@ -318,13 +324,16 @@ export type Database = {
           zip?: string | null
         }
         Update: {
+          category?: string | null
           city?: string
           county?: string | null
           created_at?: string | null
           description?: string | null
+          duplicate_of?: string | null
           google_types?: Json | null
           hours?: Json | null
           id?: string
+          is_pseo_eligible?: boolean
           last_updated?: string | null
           latitude?: number
           longitude?: number
@@ -343,7 +352,15 @@ export type Database = {
           website?: string | null
           zip?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "maryland_attractions_duplicate_of_fkey"
+            columns: ["duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "maryland_attractions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       maryland_neighborhoods: {
         Row: {

@@ -41,6 +41,7 @@
     "data:enrich": "tsx scripts/enrich-supabase-breweries.ts",
     "data:enrich:amenities": "tsx scripts/enrich-amenities-from-reviews.ts",
     "data:attractions": "tsx scripts/fetch-maryland-attractions.ts",
+    "data:attraction-counties": "tsx scripts/fill-attraction-counties.ts",
     "seo:count-urls": "tsx scripts/count-sitemap-urls.ts",
     "test:e2e": "playwright test",
     "db:types": "supabase gen types typescript --linked --schema public > src/lib/db/database.types.ts",
